@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+backend/venv/
+__pycache__/
+*.pyc
+
+# Build outputs
+frontend/dist/
+build/
+
+# Database & Storage
+*.db
+backend/docauto.db
+backend/test_docauto.db
+storage/templates/*
+storage/sources/*
+storage/generated/*
+!storage/templates/.gitkeep
+!storage/sources/.gitkeep
+!storage/generated/.gitkeep
+
+# Environment & Secrets
+.env
+backend/.env
+.DS_Store
+.idea/
+.vscode/
