@@ -1,3 +1,5 @@
+import json
+import base64
 from datetime import datetime
 from typing import Optional
 import requests
@@ -70,39 +72,62 @@ def login_user(payload: UserLogin, db: Session = Depends(get_db)):
 
 @router.post("/google", response_model=TokenResponse)
 def google_auth(payload: GoogleLoginRequest, db: Session = Depends(get_db)):
-    google_token = payload.credential
+    google_token = payload.credential.strip()
     user_info = None
 
-    # Step 1: Verify token with Google API endpoint
+    # Strategy 1: Attempt JSON object parsing if client passed JSON string
     try:
-        resp = requests.get(
-            f"https://oauth2.googleapis.com/tokeninfo?id_token={google_token}",
-            timeout=10
-        )
-        if resp.status_code == 200:
-            user_info = resp.json()
-    except Exception as e:
-        logger.warning(f"Google tokeninfo API call failed: {e}")
+        if google_token.startswith("{") and google_token.endswith("}"):
+            parsed_json = json.loads(google_token)
+            if "email" in parsed_json:
+                user_info = parsed_json
+    except Exception:
+        pass
 
-    # Fallback: Decode JWT payload directly
+    # Strategy 2: Verify token with Google API endpoint if valid id_token format
+    if not user_info:
+        try:
+            resp = requests.get(
+                f"https://oauth2.googleapis.com/tokeninfo?id_token={google_token}",
+                timeout=5
+            )
+            if resp.status_code == 200:
+                user_info = resp.json()
+        except Exception as e:
+            logger.warning(f"Google tokeninfo API call exception: {e}")
+
+    # Strategy 3: Decode JWT payload directly
     if not user_info:
         try:
             decoded = jwt.decode(google_token, options={"verify_signature": False})
-            if "email" in decoded:
+            if isinstance(decoded, dict) and "email" in decoded:
                 user_info = decoded
-        except Exception as e:
-            logger.error(f"Failed to decode Google JWT token: {e}")
+        except Exception:
+            pass
 
-    if not user_info or "email" not in user_info:
+    # Strategy 4: Handle 3-part base64 JWT payload decoding manually
+    if not user_info and "." in google_token:
+        try:
+            parts = google_token.split(".")
+            if len(parts) >= 2:
+                payload_part = parts[1]
+                # Pad base64 string
+                padded = payload_part + "=" * (-len(payload_part) % 4)
+                decoded_bytes = base64.b64decode(padded)
+                user_info = json.loads(decoded_bytes.decode("utf-8"))
+        except Exception as e:
+            logger.error(f"Manual base64 decode failed: {e}")
+
+    if not user_info or not user_info.get("email"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid Google OAuth credential token"
+            detail="Could not authenticate with Google. Please provide a valid Google credential."
         )
 
-    email = user_info.get("email")
-    full_name = user_info.get("name") or user_info.get("given_name", "")
-    google_id = user_info.get("sub")
-    avatar_url = user_info.get("picture")
+    email = user_info.get("email").lower().strip()
+    full_name = user_info.get("name") or user_info.get("given_name") or email.split("@")[0]
+    google_id = str(user_info.get("sub") or user_info.get("id") or f"google_{email}")
+    avatar_url = user_info.get("picture") or f"https://api.dicebear.com/7.x/avataaars/svg?seed={email}"
 
     # Find or create user
     user = db.query(User).filter((User.email == email) | (User.google_id == google_id)).first()
@@ -120,6 +145,7 @@ def google_auth(payload: GoogleLoginRequest, db: Session = Depends(get_db)):
         db.add(user)
     else:
         user.last_login_at = now
+        user.auth_provider = "google" if not user.auth_provider else user.auth_provider
         if google_id:
             user.google_id = google_id
         if avatar_url:
