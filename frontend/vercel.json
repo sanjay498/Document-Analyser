@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://docauto-api.onrender.com/api/:path*"
+      "destination": "https://document-analyser-9phd.onrender.com/api/:path*"
     },
     {
       "source": "/(.*)",
