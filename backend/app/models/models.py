@@ -13,8 +13,12 @@ class User(Base):
     id = Column(String(36), primary_key=True, default=generate_uuid)
     email = Column(String(255), unique=True, nullable=False, index=True)
     full_name = Column(String(255), nullable=True)
-    hashed_password = Column(String(255), nullable=False)
+    hashed_password = Column(String(255), nullable=True) # Optional for Google OAuth users
+    google_id = Column(String(255), nullable=True, index=True)
+    auth_provider = Column(String(50), default="email") # email, google
+    avatar_url = Column(String(500), nullable=True)
     is_active = Column(Boolean, default=True)
+    last_login_at = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class Template(Base):

@@ -17,7 +17,6 @@ const client = axios.create({
   },
 });
 
-// Interceptor to attach Authorization Bearer token if present
 client.interceptors.request.use((config) => {
   const token = localStorage.getItem('docauto_token');
   if (token) {
@@ -25,6 +24,19 @@ client.interceptors.request.use((config) => {
   }
   return config;
 });
+
+export interface UserDetail {
+  id: string;
+  email: string;
+  full_name?: string;
+  auth_provider: string;
+  avatar_url?: string;
+  is_active: boolean;
+  last_login_at?: string;
+  created_at: string;
+  template_count: number;
+  processing_job_count: number;
+}
 
 export const api = {
   // Auth
@@ -38,8 +50,19 @@ export const api = {
     return res.data;
   },
 
+  loginWithGoogle: async (credential: string) => {
+    const res = await client.post('/auth/google', { credential });
+    return res.data;
+  },
+
   getMe: async () => {
     const res = await client.get('/auth/me');
+    return res.data;
+  },
+
+  // Admin & User Logins
+  getAdminUsers: async (): Promise<UserDetail[]> => {
+    const res = await client.get('/admin/users');
     return res.data;
   },
 

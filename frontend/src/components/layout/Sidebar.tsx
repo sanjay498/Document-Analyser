@@ -8,6 +8,7 @@ import {
   Settings,
   Sparkles,
   Layers,
+  Users,
 } from 'lucide-react';
 
 const navigation = [
@@ -15,6 +16,7 @@ const navigation = [
   { name: 'Templates', href: '/templates', icon: Layers },
   { name: 'Process Document', href: '/process', icon: PlayCircle },
   { name: 'Generated Documents', href: '/documents', icon: FileCheck },
+  { name: 'User Logins', href: '/admin/users', icon: Users },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 

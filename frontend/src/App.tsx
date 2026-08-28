@@ -9,6 +9,7 @@ import { TemplatesPage } from './pages/TemplatesPage';
 import { TemplateDetailPage } from './pages/TemplateDetailPage';
 import { ProcessDocumentPage } from './pages/ProcessDocumentPage';
 import { GeneratedDocumentsPage } from './pages/GeneratedDocumentsPage';
+import { UserManagementPage } from './pages/UserManagementPage';
 import { SettingsPage } from './pages/SettingsPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -72,6 +73,14 @@ export const AppContent: React.FC = () => {
         element={
           <ProtectedRoute>
             <GeneratedDocumentsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/users"
+        element={
+          <ProtectedRoute>
+            <UserManagementPage />
           </ProtectedRoute>
         }
       />
