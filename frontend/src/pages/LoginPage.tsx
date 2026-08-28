@@ -18,8 +18,11 @@ export const LoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+
   useEffect(() => {
-    // Load Google Identity Services script
+    if (!googleClientId) return;
+
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
@@ -28,7 +31,7 @@ export const LoginPage: React.FC = () => {
       if (window.google) {
         try {
           window.google.accounts.id.initialize({
-            client_id: '928409124012-sampleid.apps.googleusercontent.com',
+            client_id: googleClientId,
             callback: handleGoogleCredentialResponse,
           });
         } catch (e) {}
@@ -41,7 +44,7 @@ export const LoginPage: React.FC = () => {
         document.body.removeChild(script);
       } catch (e) {}
     };
-  }, []);
+  }, [googleClientId]);
 
   const handleGoogleCredentialResponse = async (response: any) => {
     if (!response || !response.credential) return;
@@ -52,7 +55,7 @@ export const LoginPage: React.FC = () => {
       localStorage.setItem('docauto_token', data.access_token);
       window.location.href = '/';
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Google login failed.');
+      setError(err.response?.data?.detail || 'Google authentication failed.');
       setIsSubmitting(false);
     }
   };
@@ -61,8 +64,8 @@ export const LoginPage: React.FC = () => {
     setError(null);
     setIsSubmitting(true);
 
-    // Try Google Prompt first if GSI is active
-    if (window.google && window.google.accounts && window.google.accounts.id) {
+    // If real Google Client ID is configured, try Google GSI prompt
+    if (googleClientId && window.google && window.google.accounts && window.google.accounts.id) {
       try {
         window.google.accounts.id.prompt((notification: any) => {
           if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
@@ -99,7 +102,7 @@ export const LoginPage: React.FC = () => {
       window.location.href = '/';
     } catch (err: any) {
       console.error("Google Auth error:", err);
-      setError(err.response?.data?.detail || 'Google sign-in failed. Please try again.');
+      setError(err.response?.data?.detail || 'Google sign-in failed.');
       setIsSubmitting(false);
     }
   };
