@@ -13,6 +13,7 @@ class User(Base):
     id = Column(String(36), primary_key=True, default=generate_uuid)
     email = Column(String(255), unique=True, nullable=False, index=True)
     full_name = Column(String(255), nullable=True)
+    hashed_password = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -30,7 +31,7 @@ class Template(Base):
 
     fields = relationship("TemplateField", back_populates="template", cascade="all, delete-orphan")
     versions = relationship("TemplateVersion", back_populates="template", cascade="all, delete-orphan")
-    processing_jobs = relationship("ProcessingJob", back_populates="template")
+    processing_jobs = relationship("ProcessingJob", back_populates="template", cascade="all, delete-orphan")
 
 class TemplateVersion(Base):
     __tablename__ = "template_versions"

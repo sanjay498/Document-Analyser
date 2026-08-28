@@ -91,6 +91,17 @@ class TemplateService:
     @staticmethod
     def delete_template(db: Session, template_id: str) -> bool:
         template = TemplateService.get_template_by_id(db, template_id)
+        
+        # Cleanup associated source files and generated document files from disk
+        for job in template.processing_jobs:
+            for source_doc in job.source_documents:
+                storage_service.delete_file(source_doc.file_path)
+            for gen_doc in job.generated_documents:
+                if gen_doc.docx_file_path:
+                    storage_service.delete_file(gen_doc.docx_file_path)
+                if gen_doc.pdf_file_path:
+                    storage_service.delete_file(gen_doc.pdf_file_path)
+
         storage_service.delete_file(template.file_path)
         db.delete(template)
         db.commit()

@@ -12,6 +12,7 @@ import {
   Layers,
   Sparkles,
   AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -21,6 +22,7 @@ export const TemplatesPage: React.FC = () => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ['templates'],
@@ -44,7 +46,11 @@ export const TemplatesPage: React.FC = () => {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteTemplate(id),
     onSuccess: () => {
+      setDeleteError(null);
       queryClient.invalidateQueries({ queryKey: ['templates'] });
+    },
+    onError: (err: any) => {
+      setDeleteError(err.response?.data?.detail || 'Failed to delete template. Please try again.');
     },
   });
 
@@ -57,7 +63,7 @@ export const TemplatesPage: React.FC = () => {
             <Layers className="w-6 h-6 text-brand-400" /> Template Management
           </h1>
           <p className="text-slate-400 text-sm">
-            Upload predefined DOCX templates with dynamic tags like <code className="text-brand-300 bg-brand-500/10 px-1 py-0.5 rounded">{"{{BORROWER_NAME}}"}</code>
+            Upload predefined DOCX or PDF templates with dynamic tags like <code className="text-brand-300 bg-brand-500/10 px-1 py-0.5 rounded">{"{{BORROWER_NAME}}"}</code>
           </p>
         </div>
         <button
@@ -68,6 +74,18 @@ export const TemplatesPage: React.FC = () => {
         </button>
       </div>
 
+      {deleteError && (
+        <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{deleteError}</span>
+          </div>
+          <button onClick={() => setDeleteError(null)} className="text-slate-400 hover:text-white">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Grid of Templates */}
       {isLoading ? (
         <div className="py-12 text-center text-slate-400">Loading templates...</div>
@@ -76,7 +94,7 @@ export const TemplatesPage: React.FC = () => {
           <FileText className="w-12 h-12 text-slate-600 mx-auto" />
           <h3 className="text-lg font-semibold text-slate-200">No Templates Uploaded Yet</h3>
           <p className="text-sm text-slate-400 max-w-md mx-auto">
-            Upload a DOCX template containing placeholders like <code className="text-brand-300">{"{{NAME}}"}</code> or <code className="text-brand-300">{"{{DATE}}"}</code> to get started.
+            Upload a DOCX or PDF template containing placeholders like <code className="text-brand-300">{"{{NAME}}"}</code> or <code className="text-brand-300">{"{{DATE}}"}</code> to get started.
           </p>
           <button
             onClick={() => setIsUploadOpen(true)}
@@ -94,8 +112,8 @@ export const TemplatesPage: React.FC = () => {
                   <div className="p-3 rounded-xl bg-brand-500/10 text-brand-400 border border-brand-500/20">
                     <FileText className="w-6 h-6" />
                   </div>
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
-                    {tpl.fields.length} Dynamic Fields
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700 uppercase">
+                    {tpl.file_type} • {tpl.fields.length} Fields
                   </span>
                 </div>
                 <div>
@@ -139,14 +157,20 @@ export const TemplatesPage: React.FC = () => {
                     <PlayCircle className="w-3.5 h-3.5" /> Process
                   </Link>
                   <button
+                    disabled={deleteMutation.isPending}
                     onClick={() => {
-                      if (confirm('Are you sure you want to delete this template?')) {
+                      if (confirm(`Are you sure you want to delete template "${tpl.name}"?`)) {
                         deleteMutation.mutate(tpl.id);
                       }
                     }}
-                    className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 transition-colors"
+                    title="Delete Template"
+                    className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 transition-colors disabled:opacity-50"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    {deleteMutation.isPending ? (
+                      <RefreshCw className="w-4 h-4 animate-spin text-rose-400" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -161,7 +185,7 @@ export const TemplatesPage: React.FC = () => {
           <div className="glass-card rounded-2xl max-w-lg w-full p-6 space-y-6 shadow-2xl border border-slate-800">
             <div className="flex items-center justify-between pb-4 border-b border-slate-800">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <Upload className="w-5 h-5 text-brand-400" /> Upload DOCX Template
+                <Upload className="w-5 h-5 text-brand-400" /> Upload DOCX / PDF Template
               </h3>
               <button
                 onClick={() => setIsUploadOpen(false)}

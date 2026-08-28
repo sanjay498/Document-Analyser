@@ -17,7 +17,32 @@ const client = axios.create({
   },
 });
 
+// Interceptor to attach Authorization Bearer token if present
+client.interceptors.request.use((config) => {
+  const token = localStorage.getItem('docauto_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 export const api = {
+  // Auth
+  register: async (email: string, password: string, fullName?: string) => {
+    const res = await client.post('/auth/register', { email, password, full_name: fullName });
+    return res.data;
+  },
+
+  login: async (email: string, password: string) => {
+    const res = await client.post('/auth/login', { email, password });
+    return res.data;
+  },
+
+  getMe: async () => {
+    const res = await client.get('/auth/me');
+    return res.data;
+  },
+
   // Templates
   getTemplates: async (): Promise<Template[]> => {
     const res = await client.get('/templates');
