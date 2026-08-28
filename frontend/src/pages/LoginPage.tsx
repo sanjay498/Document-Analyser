@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
+import { Config } from '../config';
 import { Sparkles, Lock, Mail, ArrowRight, AlertCircle, RefreshCw } from 'lucide-react';
 
 declare global {
@@ -18,7 +19,7 @@ export const LoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+  const googleClientId = Config.googleClientId;
 
   useEffect(() => {
     if (!googleClientId) return;
@@ -64,7 +65,6 @@ export const LoginPage: React.FC = () => {
     setError(null);
     setIsSubmitting(true);
 
-    // If real Google Client ID is configured, try Google GSI prompt
     if (googleClientId && window.google && window.google.accounts && window.google.accounts.id) {
       try {
         window.google.accounts.id.prompt((notification: any) => {
