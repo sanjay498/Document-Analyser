@@ -5,12 +5,6 @@ import { api } from '../services/api';
 import { Config } from '../config';
 import { Sparkles, Lock, Mail, ArrowRight, AlertCircle, RefreshCw } from 'lucide-react';
 
-declare global {
-  interface Window {
-    google?: any;
-  }
-}
-
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
@@ -19,92 +13,51 @@ export const LoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const googleClientId = Config.googleClientId;
-
   useEffect(() => {
-    if (!googleClientId) return;
-
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      if (window.google) {
-        try {
-          window.google.accounts.id.initialize({
-            client_id: googleClientId,
-            callback: handleGoogleCredentialResponse,
-          });
-        } catch (e) {}
+    // Check if returning from Google OAuth redirect with #id_token=... or #access_token=...
+    if (window.location.hash && (window.location.hash.includes('id_token=') || window.location.hash.includes('access_token='))) {
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const idToken = hashParams.get('id_token') || hashParams.get('access_token');
+      if (idToken) {
+        handleGoogleToken(idToken);
       }
-    };
-    document.body.appendChild(script);
+    }
+  }, []);
 
-    return () => {
-      try {
-        document.body.removeChild(script);
-      } catch (e) {}
-    };
-  }, [googleClientId]);
-
-  const handleGoogleCredentialResponse = async (response: any) => {
-    if (!response || !response.credential) return;
+  const handleGoogleToken = async (token: string) => {
     setIsSubmitting(true);
     setError(null);
     try {
-      const data = await api.loginWithGoogle(response.credential);
+      const data = await api.loginWithGoogle(token);
       localStorage.setItem('docauto_token', data.access_token);
-      window.location.href = '/';
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Google authentication failed.');
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleGoogleSignInClick = async () => {
-    setError(null);
-    setIsSubmitting(true);
-
-    if (googleClientId && window.google && window.google.accounts && window.google.accounts.id) {
-      try {
-        window.google.accounts.id.prompt((notification: any) => {
-          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            fallbackGooglePrompt();
-          }
-        });
-        return;
-      } catch (e) {}
-    }
-
-    fallbackGooglePrompt();
-  };
-
-  const fallbackGooglePrompt = async () => {
-    const googleEmail = prompt(
-      "Enter your Google Account email to Sign In with Google:",
-      "user.google@gmail.com"
-    );
-    if (!googleEmail || !googleEmail.trim()) {
-      setIsSubmitting(false);
-      return;
-    }
-
-    try {
-      const payloadObj = JSON.stringify({
-        email: googleEmail.trim().toLowerCase(),
-        name: googleEmail.split('@')[0].replace('.', ' '),
-        picture: `https://api.dicebear.com/7.x/avataaars/svg?seed=${googleEmail}`,
-        sub: `google_${Date.now()}`
-      });
-
-      const data = await api.loginWithGoogle(payloadObj);
-      localStorage.setItem('docauto_token', data.access_token);
+      // Clean URL hash
+      window.history.replaceState(null, '', window.location.pathname);
       window.location.href = '/';
     } catch (err: any) {
       console.error("Google Auth error:", err);
-      setError(err.response?.data?.detail || 'Google sign-in failed.');
+      setError(err.response?.data?.detail || 'Google sign-in verification failed.');
       setIsSubmitting(false);
     }
+  };
+
+  const handleGoogleSignInClick = () => {
+    setError(null);
+    setIsSubmitting(true);
+
+    const clientId = Config.googleClientId || '928409124012-sampleid.apps.googleusercontent.com';
+    const redirectUri = window.location.origin + '/login';
+
+    // Official Google OAuth 2.0 Authorization Endpoint
+    const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
+      clientId
+    )}&redirect_uri=${encodeURIComponent(
+      redirectUri
+    )}&response_type=id_token&scope=${encodeURIComponent(
+      'openid email profile'
+    )}&nonce=${Date.now()}&prompt=select_account`;
+
+    // Redirect user to Google Accounts
+    window.location.href = googleAuthUrl;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -149,7 +102,7 @@ export const LoginPage: React.FC = () => {
           </div>
         )}
 
-        {/* Google OAuth Button */}
+        {/* Official Google OAuth Redirect Button */}
         <button
           onClick={handleGoogleSignInClick}
           type="button"
@@ -178,7 +131,7 @@ export const LoginPage: React.FC = () => {
               />
             </svg>
           )}
-          <span>{isSubmitting ? 'Authenticating...' : 'Sign in with Google'}</span>
+          <span>{isSubmitting ? 'Redirecting to Google...' : 'Sign in with Google'}</span>
         </button>
 
         <div className="relative flex py-1 items-center">

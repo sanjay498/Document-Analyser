@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
+import { Config } from '../config';
 import { Sparkles, Lock, Mail, User, ArrowRight, AlertCircle, RefreshCw } from 'lucide-react';
 
 export const RegisterPage: React.FC = () => {
@@ -12,6 +13,49 @@ export const RegisterPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (window.location.hash && (window.location.hash.includes('id_token=') || window.location.hash.includes('access_token='))) {
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const idToken = hashParams.get('id_token') || hashParams.get('access_token');
+      if (idToken) {
+        handleGoogleToken(idToken);
+      }
+    }
+  }, []);
+
+  const handleGoogleToken = async (token: string) => {
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const data = await api.loginWithGoogle(token);
+      localStorage.setItem('docauto_token', data.access_token);
+      window.history.replaceState(null, '', window.location.pathname);
+      window.location.href = '/';
+    } catch (err: any) {
+      console.error("Google Auth error:", err);
+      setError(err.response?.data?.detail || 'Google sign-in verification failed.');
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleGoogleSignInClick = () => {
+    setError(null);
+    setIsSubmitting(true);
+
+    const clientId = Config.googleClientId || '928409124012-sampleid.apps.googleusercontent.com';
+    const redirectUri = window.location.origin + '/login';
+
+    const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
+      clientId
+    )}&redirect_uri=${encodeURIComponent(
+      redirectUri
+    )}&response_type=id_token&scope=${encodeURIComponent(
+      'openid email profile'
+    )}&nonce=${Date.now()}&prompt=select_account`;
+
+    window.location.href = googleAuthUrl;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,33 +75,6 @@ export const RegisterPage: React.FC = () => {
         setError(err.message || 'Registration failed. Please try again.');
       }
     } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleGoogleSignInClick = async () => {
-    const googleEmail = prompt(
-      "Enter your Google Account email to Sign In with Google:",
-      "user.google@gmail.com"
-    );
-    if (!googleEmail || !googleEmail.trim()) return;
-
-    setIsSubmitting(true);
-    setError(null);
-    try {
-      const payloadObj = JSON.stringify({
-        email: googleEmail.trim().toLowerCase(),
-        name: googleEmail.split('@')[0].replace('.', ' '),
-        picture: `https://api.dicebear.com/7.x/avataaars/svg?seed=${googleEmail}`,
-        sub: `google_${Date.now()}`
-      });
-
-      const data = await api.loginWithGoogle(payloadObj);
-      localStorage.setItem('docauto_token', data.access_token);
-      window.location.href = '/';
-    } catch (err: any) {
-      console.error("Google Auth error:", err);
-      setError(err.response?.data?.detail || 'Google sign-in failed. Please try again.');
       setIsSubmitting(false);
     }
   };
@@ -82,7 +99,7 @@ export const RegisterPage: React.FC = () => {
           </div>
         )}
 
-        {/* Google OAuth Button */}
+        {/* Official Google OAuth Redirect Button */}
         <button
           onClick={handleGoogleSignInClick}
           type="button"
@@ -111,7 +128,7 @@ export const RegisterPage: React.FC = () => {
               />
             </svg>
           )}
-          <span>{isSubmitting ? 'Authenticating...' : 'Sign in with Google'}</span>
+          <span>{isSubmitting ? 'Redirecting to Google...' : 'Sign in with Google'}</span>
         </button>
 
         <div className="relative flex py-1 items-center">
