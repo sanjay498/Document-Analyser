@@ -1,26 +1,60 @@
-version: '3.8'
-
 services:
-  backend:
+  postgres:
+    image: postgres:16-alpine
+    container_name: lextitle_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-lextitle}
+      POSTGRES_USER: ${POSTGRES_USER:-lextitle_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lextitle_secure_pass_2026}
+    ports:
+      - "5432:5432"
+    volumes:
+      - lextitle_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-lextitle_user} -d $${POSTGRES_DB:-lextitle}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
+    container_name: lextitle_ai_app
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "8000:8000"
     environment:
       - ENVIRONMENT=production
-      - DATABASE_URL=sqlite:///./storage/docauto.db
-      - STORAGE_DIR=/app/storage
-      - AI_PROVIDER=huggingface
-      - HUGGINGFACE_MODEL=Qwen/Qwen2.5-72B-Instruct
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-lextitle_user}:${POSTGRES_PASSWORD:-lextitle_secure_pass_2026}@postgres:5432/${POSTGRES_DB:-lextitle}
+      - DB_POOL_SIZE=${DB_POOL_SIZE:-10}
+      - DB_MAX_OVERFLOW=${DB_MAX_OVERFLOW:-20}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY}
+      - NEMOTRON_DEFAULT_MODEL=${NEMOTRON_DEFAULT_MODEL:-nvidia/nemotron-3-nano-omni-30b-a3b-reasoning}
+      - NEMOTRON_BASE_URL=${NEMOTRON_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-doc-filler-ai-jwt-super-secret-key-2026}
+      - JWT_SECRET=${JWT_SECRET:-doc-filler-ai-jwt-super-secret-key-2026}
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@lextitle.ai}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-LexTitleAdmin2026!Secure}
+      - ADMIN_NAME=${ADMIN_NAME:-LexTitle Chief Administrator}
+      - ADMIN_MOBILE=${ADMIN_MOBILE:-+919876543210}
+      - UPI_VPA=${UPI_VPA:-lextitle.billing@icici}
+      - UPI_PAYEE_NAME=${UPI_PAYEE_NAME:-LexTitle AI Legal Systems}
+      - ENABLE_WALLET_ENFORCEMENT=${ENABLE_WALLET_ENFORCEMENT:-false}
     volumes:
-      - ./storage:/app/storage
+      - lextitle_data:/app/data
+      - lextitle_uploads:/app/uploads
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "3000:80"
-    depends_on:
-      - backend
+volumes:
+  lextitle_pgdata:
+  lextitle_data:
+  lextitle_uploads:
+

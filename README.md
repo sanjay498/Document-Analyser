@@ -1,95 +1,105 @@
-# DocAuto AI - Enterprise AI-Powered Document Automation Platform
+# LexTitle AI — Production Legal Title Scrutiny & Document Synthesis
 
-An enterprise-grade document automation platform that allows users to upload predefined document templates (`.docx`) containing dynamic placeholders (`{{FIELD_NAME}}`) and multi-format source documents (PDF, DOCX, JPG, PNG, scanned images).
+LexTitle AI is a modern, high-performance legal document scrutiny and synthesis platform engineered for Indian legal workflows, bank title opinions, and real estate conveyance scrutiny.
 
-The application leverages OCR and a modular AI architecture (supporting Hugging Face models like `Qwen/Qwen2.5-72B-Instruct` or `Mistral-7B` with zero-token offline fallbacks) to semantically extract information, present human-in-the-loop validation, and generate clean DOCX and PDF documents that **strictly preserve original template layout, fonts, colors, tables, headers, and footers**.
+The platform extracts key title attributes, parties, deed numbers, survey extents, and encumbrance schedules from raw scanned deeds (PDF/images) using Google Gemini and NVIDIA Nemotron multimodal AI models, verifies extraction confidence, and synthesizes complete legal title opinions and scrutiny reports into formatted DOCX documents.
 
 ---
 
 ## Key Features
 
-- **Dynamic Template Management**: Upload `.docx` templates with placeholders like `{{BORROWER_NAME}}`, `{{DOCUMENT_NUMBER}}`, `{{DATE}}`. Auto-detects fields and allows custom field additions.
-- **Multi-Format Source Document Upload**: Drag-and-drop support for PDF, DOCX, JPG, JPEG, and PNG source files (scanned documents & multi-page files).
-- **Hybrid OCR & Spatial Text Extraction**: Uses `pdfplumber`, `PyPDF`, and `EasyOCR` / `pytesseract` to extract text while maintaining page bounding box coordinates.
-- **Modular AI Field Mapping Engine**:
-  - `HuggingFaceProvider`: Connects to Hugging Face Inference API / Serverless API.
-  - `FallbackAIProvider`: Intelligent offline fuzzy and regex pattern matcher for offline operation.
-  - Pluggable `AIProviderFactory` interface.
-- **Human-in-the-Loop Review Table**: Review extracted values, view exact source document text snippets, inspect confidence scores, edit values, and highlight missing fields before document generation.
-- **Style-Preserving Document Engine**:
-  - Run-level tag substitution in paragraphs, tables, headers, and footers.
-  - Preserves exact font family, size, bold/italic, color, line spacing, and paragraph alignment.
-- **Dual PDF Engine**: Lossless PDF conversion via headless LibreOffice with ReportLab fallback.
-- **Side-by-Side Preview & Download**: Preview source text vs dynamic field insertions and download generated DOCX and PDF files.
+- **Document-First Workflow**: Clean, minimalist UI inspired by document tools—focusing purely on uploaded legal deeds and opinion generation.
+- **Multimodal AI Title Extraction**:
+  - **Google Gemini 3.x Flash**: High-speed OCR and field extraction from multi-page scanned deeds.
+  - **NVIDIA Nemotron Nano Omni Reasoning**: Structured legal reasoning and legal opinion drafting.
+- **Dynamic Bank Template Library**: Pre-configured templates grouped by major Indian banks (SBI, HDFC, ICICI, PNB, Canara, Axis) and generic scrutiny deeds.
+- **Dynamic Table Groups & Schedules**: Automatically maps parent deed chains, schedules of property, boundaries, and survey extents into DOCX tables.
+- **Production-Ready PostgreSQL Engine**:
+  - Fully asynchronous database operations with `asyncpg` and SQLAlchemy 2.0.
+  - Connection pooling with health checks, recycle intervals, and overflow handling.
+  - Transparent SQLite fallback for rapid local testing without requiring external daemons.
+- **Stealth Administration Portal**: Completely unadvertised admin route (`/management`) with master password protection for managing users, audit logs, and pricing.
+- **Integrated Wallet & Payment Proof Queue**: Real Decimal-precision financial ledger supporting direct UPI verification (UTR verification queue).
 
 ---
 
 ## Tech Stack
 
 ### Frontend
-- **Framework**: React 18, TypeScript, Vite
-- **Styling**: Tailwind CSS (with custom glassmorphic dark theme)
-- **State & Data**: TanStack React Query, Axios, React Router DOM v6
-- **UI Components & Icons**: Lucide React, Framer Motion
+- **Framework**: React 19, TypeScript, Vite
+- **Styling**: Tailwind CSS
+- **Icons**: Lucide React
+- **Build**: Vite with optimized static production bundling
 
 ### Backend
-- **Framework**: Python 3.11+, FastAPI, Pydantic v2
-- **ORM & DB**: SQLAlchemy, SQLite (default) / PostgreSQL compatible
-- **Document Processing**: `python-docx`, `pdfplumber`, `pypdf`, `Pillow`, `reportlab`
-- **OCR**: `EasyOCR` / `pytesseract`
-- **AI**: `huggingface_hub`, `requests`
+- **Framework**: Python 3.12+ / 3.14, FastAPI, Pydantic v2
+- **Database / ORM**: SQLAlchemy 2.0 Async, PostgreSQL (`asyncpg`), SQLite fallback (`aiosqlite`)
+- **Document Processing**: `python-docx`, `pypdf`, `pdfplumber`, `pypdfium2`, `pytesseract`, `Pillow`
+- **AI Integrations**: Google Gemini API, NVIDIA NIM / Nemotron, Groq
 
 ---
 
-## Quick Start (Local Development)
+## Quick Start (Docker Compose)
+
+The easiest way to run LexTitle AI with PostgreSQL in production:
+
+```bash
+# 1. Clone repository
+git clone https://github.com/sanjay498/Document-Analyser.git
+cd Document-Analyser
+
+# 2. Configure environment
+cp .env.production.example .env
+# Edit .env with your Gemini / NVIDIA API keys
+
+# 3. Launch stack (PostgreSQL + FastAPI + Vite Frontend)
+docker-compose up --build -d
+```
+
+- Application UI: http://localhost:8000
+- API Documentation: http://localhost:8000/docs
+- Health Check: http://localhost:8000/health
+
+---
+
+## Local Development
 
 ### 1. Backend Setup
+
 ```bash
 cd backend
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
+cp ../.env.production.example .env
 
-# Run FastAPI development server
-uvicorn app.main:app --reload --port 8000
+# Run FastAPI server
+uvicorn backend.app.main:app --reload --port 8000
 ```
-API Documentation will be available at: [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ### 2. Frontend Setup
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-Frontend Web App will be available at: [http://localhost:3000](http://localhost:3000)
+
+Frontend runs on http://localhost:5173 and proxies API requests to `http://localhost:8000`.
 
 ---
 
-## Running with Docker Compose
+## Running Automated Tests
+
+LexTitle AI comes with a comprehensive test suite covering API endpoints, multimodal processing, deed models, wallet transactions, and database idempotency:
 
 ```bash
-docker-compose up --build
-```
-- Frontend: [http://localhost:3000](http://localhost:3000)
-- Backend API: [http://localhost:8000/docs](http://localhost:8000/docs)
-
----
-
-## Running Test Suite
-
-```bash
-cd backend
-python3 -m pytest
+./backend/venv/bin/python -m pytest backend/tests/ -v
 ```
 
 ---
 
-## User Workflow (Step-by-Step)
+## Security & Privacy Note
 
-1. **Upload Template**: Navigate to **Templates** and upload a `.docx` template containing placeholders like `{{BORROWER_NAME}}`.
-2. **Start Process**: Go to **Process Document**, select the template, and upload source files (`.pdf`, `.jpg`, `.docx`).
-3. **Run AI Analysis**: Click **Analyze & Extract Fields with AI**. Watch real-time progress steps (`OCR PROCESSING` -> `DOCUMENT ANALYSIS` -> `FIELD MATCHING` -> `VALIDATION`).
-4. **Human Review**: Inspect the Extracted Field Mapping table. Verify values and edit any missing fields.
-5. **Generate Document**: Click **Approve & Generate Final Document**.
-6. **Download & Preview**: Preview the generated field map and download editable DOCX or PDF files.
+- Sensitive files such as `.env`, session databases (`docfiller.db*`), and API keys are strictly excluded via `.gitignore`.
+- Always set custom, cryptographically secure values for `JWT_SECRET_KEY` and `ADMIN_PASSWORD` in production.
