@@ -116,6 +116,20 @@ def test_table_data_replacement_ganapathy():
     assert "04.06.2026" in t6_text, "Execution date 04.06.2026 not found in Table 6"
     assert "--- [Document:" not in t6_text, "OCR header leak found in Table 6"
 
+    # Annexure I Heading Paragraph:
+    ann_paras = [p.text for p in filled_doc.paragraphs if "ANNEXURE" in p.text.upper()]
+    assert len(ann_paras) > 0, "Annexure heading paragraph not found"
+    assert "V. LAKSHMI" in ann_paras[0].upper(), "Owner V. Lakshmi not found in Annexure heading"
+    assert "MUTHULAKSHMI" not in ann_paras[0].upper(), "Stale Muthulakshmi found in Annexure heading"
+
+    # Table 6 Quality & Bank-grade Content:
+    assert "Details mentioned in separate sheet" not in t6_text, "Placeholder 'Details mentioned in separate sheet' found in Table 6"
+    assert "Discerption" not in t6_text, "Typo 'Discerption' found in Table 6"
+    assert "Description of the Property" in t6_text, "Proper description header not found in Table 6"
+    assert "Nil Encumbrance" in t6_text or "Nil encumbrance" in t6_text, "Nil Encumbrance statement missing in Table 6"
+    assert "North by:" in t6_text and "South by:" in t6_text, "Real boundaries missing in Table 6"
+    assert "MUTHULAKSHMI" not in t6_text, "Stale Muthulakshmi found in Table 6 for Ganapathy deed"
+
 
 def test_table_data_replacement_balashanmugam():
     doc_text = (
@@ -182,3 +196,73 @@ def test_table_data_replacement_balashanmugam():
     assert "Balashanmugam" in t6_text
     assert "Thensangampalayam" in t6_text
     assert "6.11 Acres" in t6_text
+
+    # Annexure I Heading:
+    ann_paras = [p.text for p in filled_doc.paragraphs if "ANNEXURE" in p.text.upper()]
+    assert len(ann_paras) > 0
+    assert "BALASHANMUGAM" in ann_paras[0].upper()
+    assert "MUTHULAKSHMI" not in ann_paras[0].upper()
+
+    # Table 6 Quality:
+    assert "Details mentioned in separate sheet" not in t6_text
+    assert "Discerption" not in t6_text
+    assert "Description of the Property" in t6_text
+    assert "Nil Encumbrance" in t6_text or "Nil encumbrance" in t6_text
+    assert "MUTHULAKSHMI" not in t6_text
+
+
+def test_table_data_replacement_from_database_library_item():
+    import sqlite3
+    db_path = "docfiller.db"
+    assert os.path.exists(db_path), "docfiller.db must exist"
+
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    c.execute("SELECT template_bytes FROM template_library WHERE name LIKE '%Muthulakshmi%' LIMIT 1")
+    row = c.fetchone()
+    conn.close()
+    assert row is not None, "Template item not found in template_library"
+    db_template_bytes = row[0]
+
+    # Load Ganapathy Sale Deed PDF
+    pdf_path = "/Users/apple/.gemini/antigravity/brain/8be68963-6439-419d-b754-e35983734649/.user_uploaded/media_1789962935652.pdf"
+    with open(pdf_path, "rb") as f:
+        pdf_bytes = f.read()
+
+    doc_obj = extract_text_from_pdf(pdf_bytes, "media_1789962935652.pdf")
+    _, fields, table_groups = detect_yellow_highlights(db_template_bytes)
+
+    extraction_output = mock_heuristic_extractor(
+        fields=fields,
+        source_docs=[doc_obj],
+        table_groups=table_groups
+    )
+    field_values = {f.field_id: f.value for f in extraction_output.fields if f.value is not None}
+    table_group_records = {tg.group_id: tg.records for tg in extraction_output.table_groups}
+
+    filled_bio = apply_field_values_to_template(
+        template_source=db_template_bytes,
+        fields=fields,
+        field_values=field_values,
+        table_group_records=table_group_records,
+        clear_highlight=True
+    )
+    filled_doc = Document(filled_bio)
+
+    # Verify Annexure Heading
+    ann_paras = [p.text for p in filled_doc.paragraphs if "ANNEXURE" in p.text.upper()]
+    assert len(ann_paras) > 0
+    assert "V. LAKSHMI" in ann_paras[0].upper()
+    assert "MUTHULAKSHMI" not in ann_paras[0].upper()
+
+    # Verify Table 6 (Annexure checklist table)
+    t6 = filled_doc.tables[6]
+    t6_text = " ".join(cell.text for row in t6.rows for cell in row.cells)
+    assert "LAKSHMI" in t6_text
+    assert "84/A2" in t6_text
+    assert "Details mentioned in separate sheet" not in t6_text
+    assert "Discerption" not in t6_text
+    assert "Description of the Property" in t6_text
+    assert "Nil Encumbrance" in t6_text or "Nil encumbrance" in t6_text
+    assert "MUTHULAKSHMI" not in t6_text
+

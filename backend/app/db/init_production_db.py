@@ -35,6 +35,7 @@ from backend.app.db.models import (
     SystemPricingConfig,
     SystemSetting,
     AuditLog,
+    TemplateLibraryItem,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -175,6 +176,35 @@ async def init_clean_production_database(
                 ip_address="127.0.0.1",
             )
         )
+
+        # 5. Seed Default Legal Opinion Template if not present
+        stmt_tpl = select(TemplateLibraryItem).where(
+            (TemplateLibraryItem.name.like("%Legal%")) | (TemplateLibraryItem.name.like("%Muthulakshmi%"))
+        )
+        res_tpl = await session.execute(stmt_tpl)
+        if not res_tpl.scalar_one_or_none():
+            from backend.app.core.samples import generate_legal_opinion_title_report_template
+            from backend.app.core.doc_processor import detect_yellow_highlights
+            import json
+
+            tpl_bio = generate_legal_opinion_title_report_template()
+            tpl_bytes = tpl_bio.getvalue()
+            _, fields, table_groups = detect_yellow_highlights(tpl_bytes)
+
+            session.add(
+                TemplateLibraryItem(
+                    id=str(uuid.uuid4()),
+                    user_id=admin_id,
+                    name="Muthulakshmi Gopal Agri 03.07.2026.docx",
+                    fields_count=len(fields),
+                    table_groups_count=len(table_groups),
+                    template_bytes=tpl_bytes,
+                    fields_json=json.dumps([f.model_dump() for f in fields]),
+                    table_groups_json=json.dumps([tg.model_dump() for tg in table_groups]),
+                    bank_name="General",
+                )
+            )
+            logger.info("Default Legal Opinion template seeded into template library.")
 
         await session.commit()
 

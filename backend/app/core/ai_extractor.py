@@ -749,6 +749,20 @@ def classify_field(field: HighlightedField) -> str:
             return "encumbrance_status"
         if "searches made" in row_ctx or ("encumbrance" in row_ctx and "search" in row_ctx):
             return "encumbrance_remarks"
+        if "description" in row_ctx or "discerption" in row_ctx or "nature of title" in row_ctx:
+            return "property_description_remarks"
+        if "boundaries" in row_ctx:
+            return "boundaries"
+        if "trace of title" in row_ctx or "antecedent" in row_ctx:
+            return "trace_of_title"
+        if "type of land" in row_ctx:
+            return "type_of_land"
+        if "nature of property" in row_ctx:
+            return "nature_of_property"
+        if "acquisitions" in row_ctx or "requisitions" in row_ctx:
+            return "acquisitions_remarks"
+        if "plans for construction" in row_ctx:
+            return "sanctioned_plans_remarks"
         if "encumbrance" in row_ctx or "encumbrance" in orig_lower:
             return "encumbrance_remarks"
         if "marketable" in row_ctx or "marketable" in orig_lower or "chain of title" in row_ctx:

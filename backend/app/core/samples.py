@@ -629,8 +629,10 @@ def generate_legal_opinion_title_report_template() -> BytesIO:
 
     # ANNEXURE I
     doc.add_page_break()
-    p_ann = doc.add_heading("ANNEXURE I\nSUMMARY LEGAL TITLE SEARCH REPORT ON THE PROPERTY OWNED BY K.MUTHULAKSHMI, W/o G.Kumar", level=1)
+    p_ann = doc.add_heading("ANNEXURE I\nSUMMARY LEGAL TITLE SEARCH REPORT ON THE PROPERTY OWNED BY ", level=1)
     p_ann.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_ann_borrower = p_ann.add_run("K.MUTHULAKSHMI, W/o G.Kumar")
+    r_ann_borrower.font.highlight_color = WD_COLOR_INDEX.YELLOW
 
     t_ann = doc.add_table(rows=1, cols=3)
     t_ann.style = 'Table Grid'
@@ -646,19 +648,19 @@ def generate_legal_opinion_title_report_template() -> BytesIO:
         ("2.", "Name of the Borrower", "K.MUTHULAKSHMI, W/o G.Kumar"),
         ("3.", "Name of the Advocate", "K.KANDAKUMARRAJ"),
         ("4.", "Searches made with Registrar of Conveyance Revenue and Municipality Corporation record and verified", "The applicant K.MUTHULAKSHMI, W/o G.Kumar has produced an encumbrance certificate for the period from 01.01.1987 to 25.06.2026 which discloses three transactions in total (all discharged/valid). Hence there are no subsisting encumbrances over the property as on 25.06.2026."),
-        ("5.", "Discerption of the Property/Properties/Nature of Title", "Details mentioned in separate sheet"),
+        ("5.", "Description of the Property / Properties / Nature of Title", "All that piece and parcel of Agricultural property situated at Mannur Village, Pollachi Taluk, comprised in S.F.No.245/1B and S.F.No.245/3A2, totally measuring an extent of 4.57 Acres. Nature of Title: Absolute ownership with good, clear, marketable and unencumbered freehold title."),
         ("a)", "Name of the Borrower/Owner as per title deed", "K.MUTHULAKSHMI, W/o G.Kumar,"),
         ("b)", "Extent of area (in acres/hectares/sq.mtrs/sq.ft.)", "Totally measuring an extent of 4.57 Acres"),
         ("c)", "Survey no/Gut no/CST no/House no.", "S.F.No.245/1B measuring an extent of 0.16 Acres and in S.F.No.245/3A2 measuring an extent of 4.41 Acres"),
-        ("d)", "Boundaries", "Details mentioned in separate sheet"),
+        ("d)", "Boundaries", "North by: Lands belonging to Murugesan; South by: East-West cart track; East by: Lands in S.F.No. 246; West by: Mannur Village road and cart track."),
         ("e)", "Type of land", "Agricultural"),
         ("f)", "Nature of Property", "Agricultural"),
         ("g)", "Location", "Mannur Village, Pollachi Taluk"),
-        ("h)", "Appears in land Acquisitions/requisitions/reservations", "Not Applicable"),
-        ("i)", "Plans for construction are sanctioned", "Not applicable"),
+        ("h)", "Appears in land Acquisitions/requisitions/reservations", "Verified with relevant Revenue authorities and records. The property is not subject to any Land Acquisition, requisition, or reservation proceedings."),
+        ("i)", "Plans for construction are sanctioned", "Agricultural property (vacant land); hence building sanction plan is not applicable."),
         ("j)", "Taxes paid up to date", "Computerized Chitta, Possession Certificate, Adangal which stands in the name of Muthulakshmi are herewith produced to prove that she is in possession and enjoyment of the property ."),
-        ("k)", "Trace of Title/ History of passing of title deed (Details of antecedent of title deeds)", "Details mentioned in separate sheet"),
-        ("l)", "Encumbrance Status", "Nil encumbrance as on 25.06.2026"),
+        ("k)", "Trace of Title/ History of passing of title deed (Details of antecedent of title deeds)", "Title traces through registered Sale Deeds Doc No. 1277/1987 and Doc No. 2860/1987 followed by registered Will Doc No. 387/BK3/2023 registered at SRO Pollachi, establishing continuous, defect-free chain of title for over 30 years."),
+        ("l)", "Encumbrance Status", "Nil Encumbrance. Verified through Encumbrance Certificate for the period from 01.01.1987 to 25.06.2026 issued by SRO Pollachi. Free from all mortgages, charges, liens, attachments, and claims as on 25.06.2026."),
     ]
 
     for s_no, part, comp in ann_rows:
@@ -666,8 +668,7 @@ def generate_legal_opinion_title_report_template() -> BytesIO:
         row_cells[0].paragraphs[0].add_run(s_no)
         row_cells[1].paragraphs[0].add_run(part)
         r_c = row_cells[2].paragraphs[0].add_run(comp)
-        if comp not in ("Details mentioned in separate sheet", "Not Applicable", "Not applicable"):
-            r_c.font.highlight_color = WD_COLOR_INDEX.YELLOW
+        r_c.font.highlight_color = WD_COLOR_INDEX.YELLOW
 
     p_final = doc.add_paragraph()
     p_final.paragraph_format.space_before = Pt(14)
