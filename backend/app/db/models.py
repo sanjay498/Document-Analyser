@@ -375,3 +375,25 @@ class BatchJobItem(Base):
     results_json = Column(Text, nullable=True)
     output_docx_bytes = Column(LargeBinary, nullable=True)
     error_message = Column(Text, nullable=True)
+
+
+class TemplateQASession(Base):
+    """
+    Intelligent Legal Template Question Answering Session.
+    Stores dynamic template questions, multi-document evidence,
+    generated answers, verification statuses, and final populated reports.
+    """
+    __tablename__ = "template_qa_sessions"
+
+    id = Column(String(64), primary_key=True, index=True)
+    user_id = Column(String(64), nullable=True, index=True)
+    template_filename = Column(String(255), nullable=False)
+    template_bytes = Column(LargeBinary, nullable=True)
+    status = Column(String(50), default="created")  # created, template_parsed, sources_uploaded, qa_completed, report_generated
+    questions_json = Column(Text, nullable=True)
+    sources_json = Column(Text, nullable=True)
+    answers_json = Column(Text, nullable=True)
+    final_docx_bytes = Column(LargeBinary, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+

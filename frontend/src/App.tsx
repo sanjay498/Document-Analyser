@@ -15,6 +15,7 @@ import { MetricsModal } from './components/MetricsModal';
 import { WalletModal } from './components/WalletModal';
 import { WalletView } from './components/WalletView';
 import { AdminDashboardView } from './components/AdminDashboardView';
+import { TemplateQAView } from './components/TemplateQAView';
 import {
   createSession,
   uploadTemplate,
@@ -45,7 +46,7 @@ export const App: React.FC = () => {
   const [sessionId, setSessionId] = useState<string>('');
   const [isWalletModalOpen, setIsWalletModalOpen] = useState<boolean>(false);
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [activeTab, setActiveTab] = useState<'workspace' | 'templates' | 'studio' | 'history' | 'wallet' | 'admin'>('workspace');
+  const [activeTab, setActiveTab] = useState<'workspace' | 'qa' | 'templates' | 'studio' | 'history' | 'wallet' | 'admin'>('workspace');
   const [studioTemplateId, setStudioTemplateId] = useState<string | null>(null);
   const [isMetricsModalOpen, setIsMetricsModalOpen] = useState<boolean>(false);
 
@@ -118,7 +119,7 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  const handleTabChange = (tab: 'workspace' | 'templates' | 'studio' | 'history' | 'wallet' | 'admin') => {
+  const handleTabChange = (tab: 'workspace' | 'qa' | 'templates' | 'studio' | 'history' | 'wallet' | 'admin') => {
     setActiveTab(tab);
     if (tab === 'admin') {
       if (window.location.pathname !== '/management') {
@@ -451,6 +452,8 @@ export const App: React.FC = () => {
             }}
             showToast={showToast}
           />
+        ) : activeTab === 'qa' ? (
+          <TemplateQAView />
         ) : activeTab === 'templates' ? (
           <TemplateManagerView
             currentSessionId={sessionId}

@@ -452,4 +452,80 @@ export interface PaymentStatusResponse {
   message: string;
 }
 
+export interface QAQuestionLocation {
+  location_type: 'table_cell' | 'paragraph' | 'placeholder';
+  table_index?: number;
+  row_index?: number;
+  col_index?: number;
+  answer_col_index?: number;
+  paragraph_index?: number;
+}
+
+export interface TemplateQuestion {
+  id: string;
+  section: string;
+  question_number?: string | null;
+  question_text: string;
+  question_type: string;
+  compliance_label?: string | null;
+  location: QAQuestionLocation;
+  parent_id?: string | null;
+  existing_sample_value?: string | null;
+}
+
+export interface SourceEvidence {
+  document_name: string;
+  page_number: number;
+  snippet: string;
+  relevance: number;
+  highlight_facts: string[];
+  original_tamil_text?: string | null;
+  translated_meaning?: string | null;
+  explanation: string;
+}
+
+export interface ConflictEvidence {
+  entity_type: string;
+  conflicting_values: string[];
+  sources: SourceEvidence[];
+  explanation: string;
+}
+
+export interface QuestionAnswer {
+  question_id: string;
+  question_text: string;
+  section: string;
+  question_type: string;
+  answer: string;
+  compliance_status?: 'Complied' | 'Not Complied' | 'Partially Complied' | 'Not Applicable' | 'Unable to Determine' | 'Needs Review' | string | null;
+  status: 'supported' | 'needs_review' | 'conflict_detected' | 'not_found' | 'user_approved' | 'user_edited';
+  verification_badge: 'AI Generated' | 'Human Verified';
+  confidence: number;
+  evidence: SourceEvidence[];
+  conflict?: ConflictEvidence | null;
+  user_notes?: string | null;
+  updated_at: string;
+}
+
+export interface SourceDocSummary {
+  filename: string;
+  file_type: string;
+  char_count: number;
+  page_or_section_count: number;
+  is_scanned_ocr: boolean;
+  has_tamil: boolean;
+}
+
+export interface QASessionState {
+  session_id: string;
+  status: string;
+  template_filename?: string | null;
+  questions_count: number;
+  documents_count: number;
+  questions: TemplateQuestion[];
+  answers: QuestionAnswer[];
+  documents: SourceDocSummary[];
+}
+
+
 

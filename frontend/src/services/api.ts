@@ -29,6 +29,10 @@ import type {
   PaymentItem,
   DepositResponse,
   PaymentStatusResponse,
+  TemplateQuestion,
+  QuestionAnswer,
+  QASessionState,
+  SourceDocSummary,
 } from '../types';
 
 const API_BASE = '/api';
@@ -1301,6 +1305,165 @@ export async function downloadAdminDocument(documentId: string, filename: string
   window.URL.revokeObjectURL(url);
   document.body.removeChild(a);
 }
+
+// ---------------------------------------------------------------------------
+// Intelligent Legal Template Question Answering API Client
+// ---------------------------------------------------------------------------
+
+export async function createQASession(): Promise<{ session_id: string; status: string }> {
+  const res = await fetch(`${API_BASE}/qa/sessions/create`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to create QA session' }));
+    throw new Error(err.detail || 'Failed to create QA session');
+  }
+  return res.json();
+}
+
+export async function uploadQATemplate(
+  sessionId: string,
+  file: File
+): Promise<{ session_id: string; questions_count: number; sections: string[]; questions: TemplateQuestion[] }> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await fetch(`${API_BASE}/qa/sessions/${sessionId}/upload-template`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to parse legal template' }));
+    throw new Error(err.detail || 'Failed to parse legal template');
+  }
+  return res.json();
+}
+
+export async function uploadQASources(
+  sessionId: string,
+  files: File[]
+): Promise<{ session_id: string; documents_count: number; documents: SourceDocSummary[] }> {
+  const formData = new FormData();
+  files.forEach((f) => formData.append('files', f));
+
+  const res = await fetch(`${API_BASE}/qa/sessions/${sessionId}/upload-sources`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to upload source documents' }));
+    throw new Error(err.detail || 'Failed to upload source documents');
+  }
+  return res.json();
+}
+
+export async function runIntelligentQA(
+  sessionId: string
+): Promise<{
+  session_id: string;
+  total_questions: number;
+  supported_count: number;
+  needs_review_count: number;
+  conflicts_count: number;
+  not_found_count: number;
+  answers: QuestionAnswer[];
+}> {
+  const res = await fetch(`${API_BASE}/qa/sessions/${sessionId}/run-qa`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to execute QA engine' }));
+    throw new Error(err.detail || 'Failed to execute QA engine');
+  }
+  return res.json();
+}
+
+export async function getQASessionState(sessionId: string): Promise<QASessionState> {
+  const res = await fetch(`${API_BASE}/qa/sessions/${sessionId}/state`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to fetch QA session state' }));
+    throw new Error(err.detail || 'Failed to fetch QA session state');
+  }
+  return res.json();
+}
+
+export async function updateQAAnswer(
+  sessionId: string,
+  questionId: string,
+  payload: {
+    answer: string;
+    compliance_status?: string | null;
+    status?: string;
+    verification_badge?: string;
+    user_notes?: string | null;
+  }
+): Promise<QuestionAnswer> {
+  const res = await fetch(`${API_BASE}/qa/sessions/${sessionId}/answers/${questionId}`, {
+    method: 'PUT',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to update answer' }));
+    throw new Error(err.detail || 'Failed to update answer');
+  }
+  return res.json();
+}
+
+export async function approveAllQAAnswers(sessionId: string): Promise<QuestionAnswer[]> {
+  const res = await fetch(`${API_BASE}/qa/sessions/${sessionId}/approve-all`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to approve answers' }));
+    throw new Error(err.detail || 'Failed to approve answers');
+  }
+  return res.json();
+}
+
+export async function generateQAReport(
+  sessionId: string
+): Promise<{ session_id: string; status: string; download_url: string }> {
+  const res = await fetch(`${API_BASE}/qa/sessions/${sessionId}/generate-report`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to generate report' }));
+    throw new Error(err.detail || 'Failed to generate report');
+  }
+  return res.json();
+}
+
+export async function downloadQAReport(sessionId: string, filename?: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/qa/sessions/${sessionId}/download-report`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to download report' }));
+    throw new Error(err.detail || 'Failed to download report');
+  }
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename || `Scrutiny_Report_${sessionId}.docx`;
+  document.body.appendChild(a);
+  a.click();
+  window.URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+}
+
 
 
 
