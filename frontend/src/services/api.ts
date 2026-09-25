@@ -1445,8 +1445,52 @@ export async function generateQAReport(
   return res.json();
 }
 
+export async function renameQADocument(
+  sessionId: string,
+  filename: string
+): Promise<{ session_id: string; template_filename: string }> {
+  const res = await fetch(`${API_BASE}/qa/sessions/${sessionId}/rename`, {
+    method: 'PUT',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ filename }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to rename document' }));
+    throw new Error(err.detail || 'Failed to rename document');
+  }
+  return res.json();
+}
+
+export async function useQADocAsNextTemplate(
+  sessionId: string,
+  payload?: { new_filename?: string; keep_sources?: boolean }
+): Promise<{
+  session_id: string;
+  questions_count: number;
+  sections: string[];
+  questions: TemplateQuestion[];
+}> {
+  const res = await fetch(`${API_BASE}/qa/sessions/${sessionId}/use-as-next-template`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload || {}),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to chain document as next template' }));
+    throw new Error(err.detail || 'Failed to chain document as next template');
+  }
+  return res.json();
+}
+
 export async function downloadQAReport(sessionId: string, filename?: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/qa/sessions/${sessionId}/download-report`, {
+  const query = filename ? `?filename=${encodeURIComponent(filename)}` : '';
+  const res = await fetch(`${API_BASE}/qa/sessions/${sessionId}/download-report${query}`, {
     headers: getAuthHeaders(),
   });
   if (!res.ok) {
@@ -1463,6 +1507,7 @@ export async function downloadQAReport(sessionId: string, filename?: string): Pr
   window.URL.revokeObjectURL(url);
   document.body.removeChild(a);
 }
+
 
 
 

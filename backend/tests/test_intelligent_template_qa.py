@@ -372,3 +372,91 @@ async def test_full_qa_api_workflow():
         assert res9.status_code == 200
         assert res9.headers["content-type"] == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         assert len(res9.content) > 1000
+
+
+@pytest.mark.asyncio
+async def test_rename_document_api():
+    """Verifies that document renaming updates session state and download filename."""
+    await init_db()
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # Create Session & Upload Template
+        res_create = await client.post("/api/qa/sessions/create")
+        session_id = res_create.json()["session_id"]
+
+        docx_bytes = create_mock_template_docx()
+        files = {"file": ("original_template.docx", docx_bytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
+        await client.post(f"/api/qa/sessions/{session_id}/upload-template", files=files)
+
+        # 1. Rename document without extension (auto-appends .docx)
+        res_rename = await client.put(f"/api/qa/sessions/{session_id}/rename", json={"filename": "Title_Opinion_Gopalan"})
+        assert res_rename.status_code == 200
+        assert res_rename.json()["template_filename"] == "Title_Opinion_Gopalan.docx"
+
+        # Verify state endpoint reflects new name
+        res_state = await client.get(f"/api/qa/sessions/{session_id}/state")
+        assert res_state.json()["template_filename"] == "Title_Opinion_Gopalan.docx"
+
+        # 2. Rename with explicit .docx
+        res_rename2 = await client.put(f"/api/qa/sessions/{session_id}/rename", json={"filename": "Final_Verified_Opinion.docx"})
+        assert res_rename2.status_code == 200
+        assert res_rename2.json()["template_filename"] == "Final_Verified_Opinion.docx"
+
+        # 3. Test download with custom filename query param
+        # Generate report first
+        await client.post(f"/api/qa/sessions/{session_id}/generate-report")
+        res_dl = await client.get(f"/api/qa/sessions/{session_id}/download-report?filename=Custom_Export_Report.docx")
+        assert res_dl.status_code == 200
+        assert 'filename="Custom_Export_Report.docx"' in res_dl.headers.get("content-disposition", "")
+
+
+@pytest.mark.asyncio
+async def test_use_as_next_template_api():
+    """
+    Verifies that the generated doc from a QA session can be dynamically
+    re-used as the template for a subsequent QA session ('Use as Next Template' chaining).
+    """
+    await init_db()
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # Step 1: Run Initial Session
+        res_create = await client.post("/api/qa/sessions/create")
+        session_id = res_create.json()["session_id"]
+
+        docx_bytes = create_mock_template_docx()
+        files = {"file": ("Initial_Template.docx", docx_bytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
+        await client.post(f"/api/qa/sessions/{session_id}/upload-template", files=files)
+
+        source_files = [
+            ("files", ("Deed_1987.txt", b"Sale deed Doc No. 1277/1987 Murugesan to Gopalan for S.F.No. 245/1B measuring 0.16 Acres.", "text/plain"))
+        ]
+        await client.post(f"/api/qa/sessions/{session_id}/upload-sources", files=source_files)
+        await client.post(f"/api/qa/sessions/{session_id}/run-qa")
+        await client.post(f"/api/qa/sessions/{session_id}/generate-report")
+
+        # Step 2: Use Generated Doc as Next Template (with keep_sources=True)
+        res_chain = await client.post(
+            f"/api/qa/sessions/{session_id}/use-as-next-template",
+            json={"new_filename": "Chained_Stage2_Template.docx", "keep_sources": True}
+        )
+        assert res_chain.status_code == 200
+        chain_data = res_chain.json()
+        new_session_id = chain_data["session_id"]
+        assert new_session_id != session_id
+        assert chain_data["questions_count"] >= 6
+        assert len(chain_data["questions"]) >= 6
+
+        # Step 3: Check state of new session
+        res_state = await client.get(f"/api/qa/sessions/{new_session_id}/state")
+        assert res_state.status_code == 200
+        new_state = res_state.json()
+        assert new_state["template_filename"] == "Chained_Stage2_Template.docx"
+        assert new_state["status"] == "sources_uploaded"
+        assert len(new_state["questions"]) >= 6
+
+        # Step 4: Run QA on the newly chained session
+        res_qa = await client.post(f"/api/qa/sessions/{new_session_id}/run-qa")
+        assert res_qa.status_code == 200
+        qa_data = res_qa.json()
+        assert len(qa_data["answers"]) >= 6
+        assert qa_data["supported_count"] >= 1

@@ -90,6 +90,21 @@ class UpdateAnswerRequest(BaseModel):
     user_notes: Optional[str] = None
 
 
+class RenameDocumentRequest(BaseModel):
+    filename: str
+
+
+class RenameDocumentResponse(BaseModel):
+    session_id: str
+    template_filename: str
+
+
+class UseAsNextTemplateRequest(BaseModel):
+    new_filename: Optional[str] = None
+    keep_sources: Optional[bool] = False
+
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -366,11 +381,14 @@ async def generate_completed_report(
     """
     res = await db.execute(select(TemplateQASession).where(TemplateQASession.id == session_id))
     session = res.scalar_one_or_none()
-    if not session or not session.template_bytes or not session.answers_json:
-        raise HTTPException(status_code=400, detail="Missing template or answers to generate report")
+    if not session or not session.template_bytes:
+        raise HTTPException(status_code=400, detail="Missing template to generate report")
 
-    answers = [QuestionAnswer(**a) for a in json.loads(session.answers_json)]
-    report_bytes = generate_qa_report(session.template_bytes, answers)
+    if session.answers_json:
+        answers = [QuestionAnswer(**a) for a in json.loads(session.answers_json)]
+        report_bytes = generate_qa_report(session.template_bytes, answers)
+    else:
+        report_bytes = session.template_bytes
 
     session.final_docx_bytes = report_bytes
     session.status = "report_generated"
@@ -383,20 +401,118 @@ async def generate_completed_report(
     }
 
 
+@router.put("/sessions/{session_id}/rename", response_model=RenameDocumentResponse)
+async def rename_document(
+    session_id: str,
+    payload: RenameDocumentRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """Renames the template / report document in the QA session."""
+    res = await db.execute(select(TemplateQASession).where(TemplateQASession.id == session_id))
+    session = res.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    new_name = payload.filename.strip()
+    if not new_name:
+        raise HTTPException(status_code=400, detail="Filename cannot be empty")
+
+    if not new_name.lower().endswith(".docx"):
+        new_name = f"{new_name}.docx"
+
+    session.template_filename = new_name
+    await db.commit()
+
+    return RenameDocumentResponse(session_id=session_id, template_filename=new_name)
+
+
 @router.get("/sessions/{session_id}/download-report")
 async def download_completed_report(
     session_id: str,
+    filename: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
-    """Downloads the finalized, populated .docx report."""
+    """Downloads the finalized, populated .docx report with custom filename support."""
     res = await db.execute(select(TemplateQASession).where(TemplateQASession.id == session_id))
     session = res.scalar_one_or_none()
-    if not session or not session.final_docx_bytes:
-        raise HTTPException(status_code=404, detail="Final report has not been generated yet")
+    if not session or (not session.final_docx_bytes and not session.template_bytes):
+        raise HTTPException(status_code=404, detail="No document available for download")
 
-    clean_name = f"Scrutiny_Report_{session.template_filename}"
+    target_bytes = session.final_docx_bytes or session.template_bytes
+
+    if filename and filename.strip():
+        clean_name = filename.strip()
+        if not clean_name.lower().endswith(".docx"):
+            clean_name = f"{clean_name}.docx"
+    else:
+        clean_name = session.template_filename if session.template_filename.lower().startswith("scrutiny_") else f"Scrutiny_Report_{session.template_filename}"
+        if not clean_name.lower().endswith(".docx"):
+            clean_name = f"{clean_name}.docx"
+
     return Response(
-        content=session.final_docx_bytes,
+        content=target_bytes,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f'attachment; filename="{clean_name}"'}
     )
+
+
+@router.post("/sessions/{session_id}/use-as-next-template", response_model=TemplateUploadResponse)
+async def use_as_next_template(
+    session_id: str,
+    payload: Optional[UseAsNextTemplateRequest] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Takes the generated .docx report from the current QA session and dynamically
+    provisions a new Template QA session where this document acts as the new template.
+    """
+    res = await db.execute(select(TemplateQASession).where(TemplateQASession.id == session_id))
+    session = res.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Current session not found")
+
+    target_bytes = session.final_docx_bytes
+    if not target_bytes:
+        if session.template_bytes and session.answers_json:
+            answers = [QuestionAnswer(**a) for a in json.loads(session.answers_json)]
+            target_bytes = generate_qa_report(session.template_bytes, answers)
+            session.final_docx_bytes = target_bytes
+            session.status = "report_generated"
+            await db.commit()
+        elif session.template_bytes:
+            target_bytes = session.template_bytes
+        else:
+            raise HTTPException(status_code=400, detail="No template or generated document available to chain")
+
+    base_name = session.template_filename.rsplit(".", 1)[0]
+    if payload and payload.new_filename and payload.new_filename.strip():
+        new_template_name = payload.new_filename.strip()
+    else:
+        new_template_name = f"Next_Template_{base_name}.docx"
+
+    if not new_template_name.lower().endswith(".docx"):
+        new_template_name = f"{new_template_name}.docx"
+
+    new_questions = extract_template_questions(target_bytes, new_template_name)
+    sections = list(dict.fromkeys(q.section for q in new_questions))
+
+    new_session_id = str(uuid.uuid4())
+    new_session = TemplateQASession(
+        id=new_session_id,
+        user_id=session.user_id,
+        template_filename=new_template_name,
+        template_bytes=target_bytes,
+        questions_json=json.dumps([q.model_dump() for q in new_questions]),
+        sources_json=session.sources_json if (payload and payload.keep_sources) else None,
+        status="sources_uploaded" if (payload and payload.keep_sources and session.sources_json) else "template_parsed"
+    )
+    db.add(new_session)
+    await db.commit()
+
+    return TemplateUploadResponse(
+        session_id=new_session_id,
+        questions_count=len(new_questions),
+        sections=sections,
+        questions=new_questions
+    )
+

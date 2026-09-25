@@ -276,22 +276,31 @@ def extract_template_questions(template_bytes: bytes, filename: str) -> List[Tem
                     q_counter += 1
                 continue
 
-            kv_match = re.match(r"^([^:\n]{3,60})\s*:\s*(_+|\.{3,}|\[\s*\]|\(.*\)|$)", p_text)
+            kv_match = re.match(r"^([^:\n]{3,60})\s*:\s*(.*)$", p_text)
             if kv_match:
                 label = kv_match.group(1).strip()
+                val = kv_match.group(2).strip()
+                is_placeholder = bool(re.match(r"^(_+|\.{3,}|\[\s*\]|\(.*\)|$)", val))
                 q_type = classify_question(label, current_section)
-                questions.append(TemplateQuestion(
-                    id=f"q_{q_counter}",
-                    section=current_section,
-                    question_number=None,
-                    question_text=label,
-                    question_type=q_type,
-                    location=QuestionLocation(
-                        location_type="placeholder",
-                        paragraph_index=p_idx
-                    )
-                ))
-                q_counter += 1
+
+                if is_placeholder or q_type != "GENERAL_LEGAL_QUESTION" or any(k in label.lower() for k in [
+                    "name", "borrower", "survey", "extent", "property", "boundaries", "schedule", "village", "taluk", "district", "mortgagor", "mortgagee", "purchaser", "vendor"
+                ]):
+                    if label.lower() not in ["note", "disclaimer", "warning", "important"]:
+                        questions.append(TemplateQuestion(
+                            id=f"q_{q_counter}",
+                            section=current_section,
+                            question_number=None,
+                            question_text=label,
+                            question_type=q_type,
+                            existing_sample_value=val if not is_placeholder else None,
+                            location=QuestionLocation(
+                                location_type="placeholder",
+                                paragraph_index=p_idx
+                            )
+                        ))
+                        q_counter += 1
+                        continue
 
         # Scan tables for question/answer rows
         for t_idx, table in enumerate(doc.tables):

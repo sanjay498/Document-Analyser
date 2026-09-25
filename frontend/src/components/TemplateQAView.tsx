@@ -17,7 +17,9 @@ import {
   Scale,
   Search,
   CheckCheck,
-  Languages
+  Languages,
+  ArrowRight,
+  X
 } from 'lucide-react';
 import type {
   TemplateQuestion,
@@ -32,7 +34,9 @@ import {
   updateQAAnswer,
   approveAllQAAnswers,
   generateQAReport,
-  downloadQAReport
+  downloadQAReport,
+  renameQADocument,
+  useQADocAsNextTemplate
 } from '../services/api';
 
 export const TemplateQAView: React.FC = () => {
@@ -59,6 +63,10 @@ export const TemplateQAView: React.FC = () => {
   const [editText, setEditText] = useState<string>('');
   const [editCompliance, setEditCompliance] = useState<string>('Complied');
   const [editNotes, setEditNotes] = useState<string>('');
+
+  // Document Renaming State
+  const [isRenamingDoc, setIsRenamingDoc] = useState<boolean>(false);
+  const [docNewName, setDocNewName] = useState<string>('');
 
   // Auto-clear notification messages
   useEffect(() => {
@@ -229,15 +237,62 @@ export const TemplateQAView: React.FC = () => {
     }
   };
 
+  // Rename Document
+  const handleStartRename = () => {
+    setDocNewName(templateFilename || 'untitled_template.docx');
+    setIsRenamingDoc(true);
+  };
+
+  const handleSaveRename = async () => {
+    if (!sessionId || !docNewName.trim()) {
+      setIsRenamingDoc(false);
+      return;
+    }
+    try {
+      const res = await renameQADocument(sessionId, docNewName.trim());
+      setTemplateFilename(res.template_filename);
+      setIsRenamingDoc(false);
+      setSuccessMessage(`Document renamed to "${res.template_filename}"`);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to rename document');
+    }
+  };
+
+  // Chain Generated Doc as Next Template
+  const handleUseAsNextTemplate = async (keepSources: boolean = true) => {
+    if (!sessionId) return;
+    try {
+      setWorkflowStatus('uploading');
+      const res = await useQADocAsNextTemplate(sessionId, {
+        keep_sources: keepSources,
+      });
+      setSessionId(res.session_id);
+      setQuestions(res.questions);
+      setTemplateFilename(`Next_Template_${templateFilename || 'Report'}.docx`);
+      setAnswers([]);
+      setSelectedQuestionId(null);
+      setWorkflowStatus('intake');
+      setSuccessMessage(
+        `Successfully loaded generated document as the active template! Extracted ${res.questions_count} questions for your next scrutiny round.`
+      );
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to use document as next template');
+      setWorkflowStatus('review');
+    }
+  };
+
   // Generate & Download Completed Report
   const handleGenerateReport = async () => {
     if (!sessionId) return;
     try {
       setWorkflowStatus('generating');
       await generateQAReport(sessionId);
-      await downloadQAReport(sessionId, `Scrutiny_Report_${templateFilename || 'Completed'}.docx`);
+      const downloadFilename = templateFilename
+        ? (templateFilename.toLowerCase().endsWith('.docx') ? templateFilename : `${templateFilename}.docx`)
+        : 'Scrutiny_Report.docx';
+      await downloadQAReport(sessionId, downloadFilename);
       setWorkflowStatus('review');
-      setSuccessMessage('Report generated and downloaded successfully!');
+      setSuccessMessage(`Report generated and downloaded as "${downloadFilename}"!`);
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to generate report');
       setWorkflowStatus('review');
@@ -369,6 +424,14 @@ export const TemplateQAView: React.FC = () => {
                 Approve All Supported
               </button>
               <button
+                onClick={() => handleUseAsNextTemplate(true)}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-indigo-500/40 bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-200 flex items-center gap-1.5 shadow-sm transition-colors"
+                title="Use this generated document as the template for your next Q&A scrutiny cycle"
+              >
+                <ArrowRight className="w-3.5 h-3.5 text-indigo-400" />
+                Use as Next Template
+              </button>
+              <button
                 onClick={handleGenerateReport}
                 className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 flex items-center gap-1.5 shadow-sm transition-colors font-medium"
               >
@@ -386,6 +449,76 @@ export const TemplateQAView: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Active Document Name & Quick Rename Bar */}
+      {sessionId && (
+        <div className="bg-[#0b0f19] border border-slate-800 rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-xs shadow-md">
+          <div className="flex items-center gap-2.5">
+            <span className="text-slate-400 flex items-center gap-1.5 font-medium">
+              <FileText className="w-4 h-4 text-amber-400" />
+              Document / Template:
+            </span>
+            {isRenamingDoc ? (
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  value={docNewName}
+                  onChange={(e) => setDocNewName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveRename();
+                    if (e.key === 'Escape') setIsRenamingDoc(false);
+                  }}
+                  autoFocus
+                  placeholder="Document name (e.g. Title_Opinion.docx)"
+                  className="bg-slate-900 border border-amber-500/60 rounded px-2.5 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-500 w-64"
+                />
+                <button
+                  onClick={handleSaveRename}
+                  className="p-1 rounded bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors"
+                  title="Save name"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setIsRenamingDoc(false)}
+                  className="p-1 rounded bg-slate-800 text-slate-400 hover:bg-slate-700 transition-colors"
+                  title="Cancel"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-slate-200 bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-700">
+                  {templateFilename || 'untitled_template.docx'}
+                </span>
+                <button
+                  onClick={handleStartRename}
+                  className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-amber-400 transition-colors flex items-center gap-1 text-[11px]"
+                  title="Rename document"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Rename</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3 text-slate-400 text-[11px]">
+            <span>Session: <code className="text-slate-300 font-mono">{sessionId.slice(0, 8)}...</code></span>
+            {workflowStatus === 'review' && (
+              <button
+                onClick={() => handleUseAsNextTemplate(true)}
+                className="px-2.5 py-1 rounded bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 flex items-center gap-1.5 transition-colors font-medium"
+                title="Use generated report as the template for next Q&A round"
+              >
+                <ArrowRight className="w-3 h-3 text-indigo-400" />
+                Use as Next Template
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Notifications */}
       {errorMessage && (
