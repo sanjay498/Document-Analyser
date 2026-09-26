@@ -940,4 +940,65 @@ def test_strip_land_price_from_trace():
         assert "/-" not in p
 
 
+def test_format_certificate_of_title():
+    from backend.app.core.deed_models import format_certificate_of_title
+
+    # 1. Exact user issue: M.Anandan replaced with Balashanmugam
+    template_text = "(Original fee receipts enclosed). I certify that M.Anandan, S/o.Mayilsamy Kavundar has an absolute, clear and marketable title over the property."
+    res = format_certificate_of_title(template_text, {"borrower": "Balashanmugam, S/o Kalimuthu Chettiyar"})
+    assert "Balashanmugam, S/o Kalimuthu Chettiyar" in res
+    assert "M.Anandan" not in res
+    assert "Mayilsamy Kavundar" not in res
+    assert "(Original fee receipts enclosed). I certify that" in res
+    assert "has an absolute, clear and marketable title over the property." in res
+
+    # 2. Injected redundant trace filler sentences stripped around certificate
+    injected_text = (
+        "The title holder Balashanmugam, S/o Kalimuthu Chettiyar holds absolute, clear, and marketable title over the\n"
+        "properties and is legally competent to create mortgage security.\n"
+        "(Original fee receipts enclosed). I certify that M.Anandan, S/o.Mayilsamy Kavundar has an absolute, clear and\n"
+        "marketable title over the property.\n"
+        "The title holder Balashanmugam, S/o Kalimuthu Chettiyar holds absolute, clear, and marketable title over the\n"
+        "properties and is legally competent to create mortgage security."
+    )
+    cleaned = format_certificate_of_title(injected_text, {"borrower": "Balashanmugam, S/o Kalimuthu Chettiyar"})
+    assert "Balashanmugam, S/o Kalimuthu Chettiyar" in cleaned
+    assert "M.Anandan" not in cleaned
+    assert "The title holder Balashanmugam" not in cleaned  # redundant filler stripped from certificate
+
+    # 3. Dynamic replacement for Ganapathy / Lakshmi document
+    lakshmi_template = "I certify that K.MUTHULAKSHMI, W/o G.Kumar has an absolute, clear and marketable title over the property situated at Mannur Village and offered for mortgage."
+    lakshmi_res = format_certificate_of_title(lakshmi_template, {
+        "borrower": "V. LAKSHMI, W/o Vellingiri",
+        "village": "Pannaikinaru"
+    })
+    assert "V. LAKSHMI, W/o Vellingiri" in lakshmi_res
+    assert "K.MUTHULAKSHMI" not in lakshmi_res
+    assert "Pannaikinaru Village" in lakshmi_res
+    assert "Village Village" not in lakshmi_res
+
+    # 4. Arbitrary new client name and arbitrary village
+    arbitrary_template = "(Original fee receipts enclosed). I certify that M.Anandan, S/o.Mayilsamy Kavundar has an absolute, clear and marketable title over the property."
+    arbitrary_res = format_certificate_of_title(arbitrary_template, {
+        "borrower": "S. Rameshkumar, S/o Shanmugam",
+        "village": "Somandurai"
+    })
+    assert "S. Rameshkumar, S/o Shanmugam" in arbitrary_res
+    assert "M.Anandan" not in arbitrary_res
+
+
+def test_generate_multi_paragraph_trace_no_repetition():
+    from backend.app.core.deed_models import generate_multi_paragraph_trace
+
+    # When paragraph_count exceeds 5, ensure no repetitive filler sentences are appended
+    paras = generate_multi_paragraph_trace("sale_deed", paragraph_count=8)
+    assert len(paras) == 8
+    # Extra paragraphs 6, 7, 8 should be empty string, never repetitive filler
+    assert paras[5] == ""
+    assert paras[6] == ""
+    assert paras[7] == ""
+    for p in paras:
+        assert p.count("holds absolute, clear, and marketable title") <= 1
+
+
 

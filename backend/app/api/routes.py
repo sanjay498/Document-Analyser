@@ -55,7 +55,8 @@ from backend.app.core.deed_models import (
     clean_survey_no,
     clean_village,
     clean_sro,
-    generate_multi_paragraph_trace
+    generate_multi_paragraph_trace,
+    format_certificate_of_title
 )
 
 router = APIRouter(prefix="/api")
@@ -428,7 +429,11 @@ async def export_final_document(
             and not "to present document must be verified" in f.original_text.strip().lower()
             and not f.original_text.strip().lower().startswith("thus the title holder")
             and not "derived title" in f.original_text.strip().lower()
-            and not any(neg in f.original_text.lower() for neg in ["certify that", "certificate of title", "by way of equitable mortgage", "examined the original title deeds", "perfect evidence of right"])
+            and not any(neg in f.original_text.lower() for neg in [
+                "certify that", "certificate of title", "by way of equitable mortgage",
+                "examined the original title deeds", "perfect evidence of right",
+                "fee receipts enclosed", "original fee receipts", "marketable title over the property"
+            ])
             and (
                 classify_field(f) in ("trace_of_title", "trace_paragraph_1", "trace_paragraph_2", "trace_paragraph_3", "trace_paragraph_extra")
                 or any(k in f.original_text.lower() for k in [
@@ -473,6 +478,20 @@ async def export_final_document(
                     else:
                         target_title_holder = "Title Holder"
                 field_values[fid] = f"Thus the title holder {clean_party_name(target_title_holder)} derived title to the properties."
+
+    # 6. Update Certificate of Title and No Encumbrance fields
+    if is_title_template:
+        for fid in list(field_values.keys()):
+            matching_f = next((f for f in fields if f.field_id == fid), None)
+            if not matching_f or matching_f.is_table_cell:
+                continue
+            orig = matching_f.original_text.lower()
+            if (
+                classify_field(matching_f) == "certificate_of_title"
+                or any(k in orig for k in ["certify that", "certificate of title", "fee receipts enclosed", "original fee receipts", "marketable title over the property"])
+            ):
+                curr_val = (field_values.get(fid) or matching_f.original_text).strip()
+                field_values[fid] = format_certificate_of_title(curr_val, ctx)
 
     try:
         output_bio, content_type = apply_field_values_universal(
@@ -925,7 +944,11 @@ async def apply_deed_model_to_session(
         if not r.get("is_table_cell")
         and not (r.get("original_text") or "").strip().lower().startswith("(tracing")
         and not (r.get("original_text") or "").strip().lower().startswith("thus the title holder")
-        and not any(neg in (r.get("original_text") or "").lower() for neg in ["certify that", "certificate of title", "by way of equitable mortgage", "examined the original title deeds", "perfect evidence of right"])
+        and not any(neg in (r.get("original_text") or "").lower() for neg in [
+            "certify that", "certificate of title", "by way of equitable mortgage",
+            "examined the original title deeds", "perfect evidence of right",
+            "fee receipts enclosed", "original fee receipts", "marketable title over the property"
+        ])
         and (
             any(k in (r.get("original_text") or "").lower() for k in ["sale deed executed", "partition deed", "originally", "1277/1987", "1773/1998", "history", "murugesan", "balashanmugam", "measuring an extent", "subsequently", "power of attorney", "general power", "5035", "chitta", "patta", "revenue", "possession", "correction"])
             or len(r.get("original_text") or "") > 80
@@ -948,6 +971,11 @@ async def apply_deed_model_to_session(
             if not r.get("is_table_cell")
             and not (r.get("original_text") or "").lower().startswith("(tracing")
             and not (r.get("original_text") or "").lower().startswith("thus the title holder")
+            and not any(neg in (r.get("original_text") or "").lower() for neg in [
+                "certify that", "certificate of title", "by way of equitable mortgage",
+                "examined the original title deeds", "perfect evidence of right",
+                "fee receipts enclosed", "original fee receipts", "marketable title over the property"
+            ])
         ]
         if non_table_results:
             longest = max(non_table_results, key=lambda x: len(x.get("original_text", "")))
@@ -955,6 +983,20 @@ async def apply_deed_model_to_session(
             longest["status"] = "extracted"
             longest["reasoning"] = f"Formatted with selected legal phrasing model: {model_def.name}"
             updated = True
+
+    # Update Certificate of Title and No Encumbrance fields in raw_results
+    for r in raw_results:
+        orig_r = (r.get("original_text") or "").lower()
+        if (
+            not r.get("is_table_cell")
+            and any(k in orig_r for k in [
+                "certify that", "certificate of title", "fee receipts enclosed",
+                "original fee receipts", "marketable title over the property"
+            ])
+        ):
+            curr = r.get("value") or r.get("original_text") or ""
+            r["value"] = format_certificate_of_title(curr, ctx)
+            r["status"] = "extracted"
 
     session.results_json = json.dumps(raw_results)
     await db.commit()

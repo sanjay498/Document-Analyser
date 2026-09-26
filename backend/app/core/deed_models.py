@@ -1035,6 +1035,112 @@ def strip_land_price_from_trace(text: str) -> str:
     return t.strip()
 
 
+def format_certificate_of_title(text: str, ctx: Optional[Dict[str, Any]] = None) -> str:
+    """
+    Dynamically formats the Certificate of Title and No Encumbrance section:
+    Replaces any dummy template borrower name (e.g. M.Anandan, S/o.Mayilsamy Kavundar, K.MUTHULAKSHMI, Balashanmugam)
+    with the actual client/title holder from the uploaded document,
+    and replaces dummy village/location with the actual property location,
+    while preserving the formal bank legal certification wording intact.
+    """
+    if not text:
+        return text
+
+    context = ctx or {}
+    raw_holder = context.get("borrower") or context.get("purchaser") or context.get("allottee") or context.get("owner") or context.get("beneficiary")
+    holder = clean_party_name(str(raw_holder)) if raw_holder else ""
+    raw_village = context.get("village", "")
+    village = clean_village(str(raw_village)) if raw_village else ""
+
+    t = text
+
+    # 1. If text is a short single-line name run inside certificate
+    if len(t.strip()) <= 80 and any(k in t.lower() for k in ["anandan", "mayilsamy", "muthulakshmi", "kumar", "gopalan", "kandasamy", "chinnan", "balashanmugam"]):
+        if not any(k in t.lower() for k in ["certify", "examined", "deeds", "encumbrance", "receipts", "fee"]):
+            return holder or t
+
+    # 2. Deduplicate / strip redundant trace filler sentences if injected into certificate
+    filler_pat = r'The\s+title\s+holder\s+[^.\n\r]+?\s+holds?\s+absolute,\s+clear,?\s+and\s+marketable\s+title\s+over\s+the\s+properties\s+and\s+is\s+legally\s+competent\s+to\s+create\s+mortgage\s+security\.?\s*'
+    if re.search(r'certify\s+that', t, flags=re.IGNORECASE) and re.search(filler_pat, t, flags=re.IGNORECASE):
+        t = re.sub(filler_pat, '', t, flags=re.IGNORECASE).strip()
+    else:
+        matches = list(re.finditer(filler_pat, t, flags=re.IGNORECASE))
+        if len(matches) > 1:
+            first_span = matches[0].span()
+            first_match = t[first_span[0]:first_span[1]]
+            t = re.sub(filler_pat, '', t, flags=re.IGNORECASE).strip()
+            t = first_match.strip() + (" " + t if t else "")
+
+    # 3. Regex replace "I certify that [any party name] has an absolute..."
+    # Use [^\n\r]+? so names with periods (M.Anandan, K.MUTHULAKSHMI) match smoothly
+    if holder:
+        t = re.sub(
+            r'(I\s+(?:further\s+)?certify\s+that\s+)[^\n\r]+?(\s+has\s+an?\s+absolute)',
+            rf'\g<1>{holder}\g<2>',
+            t,
+            flags=re.IGNORECASE
+        )
+        t = re.sub(
+            r'(certify\s+that\s+)[^\n\r]+?(\s+have\s+an?\s+absolute)',
+            rf'\g<1>{holder}\g<2>',
+            t,
+            flags=re.IGNORECASE
+        )
+        t = re.sub(
+            r'(certify\s+that\s+)[^\n\r]+?(\s+holds?\s+absolute)',
+            rf'\g<1>{holder}\g<2>',
+            t,
+            flags=re.IGNORECASE
+        )
+        t = re.sub(
+            r'(certify\s+that\s+)[^\n\r]+?(\s+has\s+clear)',
+            rf'\g<1>{holder}\g<2>',
+            t,
+            flags=re.IGNORECASE
+        )
+        t = re.sub(
+            r'(certify\s+that\s+)[^\n\r]+?(\s+is\s+legally\s+competent)',
+            rf'\g<1>{holder}\g<2>',
+            t,
+            flags=re.IGNORECASE
+        )
+        t = re.sub(
+            r'(owned\s+by\s+)[^\n\r]+?(\s*[\n\r]|$|\s+situated|\s+measuring)',
+            rf'\g<1>{holder}\g<2>',
+            t,
+            flags=re.IGNORECASE
+        )
+        t = re.sub(
+            r'(standing\s+in\s+the\s+name\s+of\s+)[^\n\r]+?(\s*[\n\r]|$|\s+situated|\s+measuring|\s+and)',
+            rf'\g<1>{holder}\g<2>',
+            t,
+            flags=re.IGNORECASE
+        )
+
+        # 4. Direct replacement of known dummy template names if still present in certification
+        for dummy_pattern in [
+            r'M\.?\s*Anandan\s*(?:,\s*S/o\.?\s*Mayilsamy\s*Kavundar)?',
+            r'K\.?\s*MUTHULAKSHMI\s*(?:,\s*W/o\s*G\.?\s*Kumar)?',
+            r'Gopalan\s*(?:,\s*S/o\s*[^,\n\r]+)?',
+            r'Kalimuthu\s*Chettiyar',
+            r'C\.?\s*Ganapathy\s*(?:,\s*S/o\s*Chinnan)?',
+        ]:
+            if re.search(dummy_pattern, t, flags=re.IGNORECASE) and holder.lower() not in t.lower():
+                t = re.sub(dummy_pattern, holder, t, flags=re.IGNORECASE)
+
+    # 5. Location replacement if present in certificate
+    if village and ("situated at" in t.lower() or "relating to the property/ies" in t.lower()):
+        t = re.sub(
+            r'(situated\s+at\s+)[^.,;]+?(\s+and\s+offered)',
+            rf'\g<1>{village}\g<2>',
+            t,
+            flags=re.IGNORECASE
+        )
+
+    t = re.sub(r'\bVillage\s+Village\b', 'Village', t, flags=re.IGNORECASE)
+    return t.strip()
+
+
 def generate_multi_paragraph_trace(
     deed_id: str,
     context: Optional[Dict[str, Any]] = None,

@@ -218,3 +218,87 @@ def test_mock_heuristic_extractor_arbitrary_document():
     assert "Deepa Anand" in results_map["trace_conclusion"]
     assert "Muthulakshmi" not in results_map["trace_conclusion"]
     assert "Balashanmugam" not in results_map["trace_conclusion"]
+
+
+def test_certificate_of_title_extraction_arbitrary_and_balashanmugam():
+    """
+    Verifies that Section 4 Certificate of Title fields dynamically replace
+    dummy template borrower names (M.Anandan, Muthulakshmi, etc.) with the actual
+    document's title holder, without inserting repetitive filler sentences.
+    """
+    # 1. Test with arbitrary Deepa Anand document
+    doc_text = """
+    REGISTERED SALE DEED
+    Document No: 8872/2025 registered at SRO Avinashi on 15.03.2025.
+    Vendor: S. Mohanraj, S/o Sivakumar.
+    Purchaser: Deepa Anand, W/o Anand.
+    Property: Avinashi Village, S.F.No. 402/1, Extent: 3.20 Acres.
+    """
+    source_doc = ExtractedSourceDocument(
+        filename="Deepa_Anand_Deed_8872.pdf",
+        file_type="pdf",
+        char_count=len(doc_text),
+        page_or_section_count=1,
+        full_text=doc_text,
+        is_scanned_ocr=False
+    )
+    fields = [
+        HighlightedField(
+            field_id="cert_title_1",
+            original_text="(Original fee receipts enclosed). I certify that M.Anandan, S/o.Mayilsamy Kavundar has an absolute, clear and marketable title over the property.",
+            paragraph_context="p_cert1",
+            context_with_marker="Section 4: Certificate of title. [FIELD: (Original fee receipts enclosed). I certify that M.Anandan, S/o.Mayilsamy Kavundar has an absolute, clear and marketable title over the property.]",
+            location=FieldLocation(location_type="paragraph", paragraph_index=0, run_indices=[0]),
+            formatting=FieldFormatting(),
+            is_table_cell=False
+        ),
+        HighlightedField(
+            field_id="cert_mortgage",
+            original_text="The title holder K.MUTHULAKSHMI, W/o G.Kumar holds absolute, clear, and marketable title over the properties and is legally competent to create mortgage security.",
+            paragraph_context="p_cert2",
+            context_with_marker="Certificate of title and encumbrance. [FIELD: The title holder K.MUTHULAKSHMI, W/o G.Kumar holds absolute, clear, and marketable title over the properties and is legally competent to create mortgage security.]",
+            location=FieldLocation(location_type="paragraph", paragraph_index=1, run_indices=[0]),
+            formatting=FieldFormatting(),
+            is_table_cell=False
+        )
+    ]
+
+    output = mock_heuristic_extractor(fields, [], [source_doc])
+    res_map = {r.field_id: r.value for r in output.fields}
+
+    # Verify M.Anandan is replaced with Deepa Anand
+    assert "Deepa Anand" in res_map["cert_title_1"]
+    assert "M.Anandan" not in res_map["cert_title_1"]
+    assert "Mayilsamy Kavundar" not in res_map["cert_title_1"]
+    assert "(Original fee receipts enclosed). I certify that" in res_map["cert_title_1"]
+
+    # Verify K.Muthulakshmi is replaced with Deepa Anand
+    assert "Deepa Anand" in res_map["cert_mortgage"]
+    assert "MUTHULAKSHMI" not in res_map["cert_mortgage"]
+
+    # 2. Test with Balashanmugam document
+    doc_bala = """
+    REGISTERED PARTITION DEED
+    Document No: 1773/1998 registered at SRO Anaimalai.
+    Allottee: Balashanmugam, S/o Kalimuthu Chettiyar.
+    General Power of Attorney Doc No: 5035/2012 registered at SRO Anaimalai.
+    Power Agent: Senthilraja, S/o Balashanmugam.
+    Property: Thensangampalayam Village, S.F.No. 74/B, 75, 76/2, Extent: 6.11 Acres.
+    """
+    bala_doc = ExtractedSourceDocument(
+        filename="Bala_1773_5035.pdf",
+        file_type="pdf",
+        char_count=len(doc_bala),
+        page_or_section_count=1,
+        full_text=doc_bala,
+        is_scanned_ocr=False
+    )
+    output_bala = mock_heuristic_extractor(fields, [], [bala_doc])
+    res_bala = {r.field_id: r.value for r in output_bala.fields}
+
+    assert "Balashanmugam, S/o Kalimuthu Chettiyar" in res_bala["cert_title_1"]
+    assert "M.Anandan" not in res_bala["cert_title_1"]
+    assert "Mayilsamy Kavundar" not in res_bala["cert_title_1"]
+    # Check that repetitive trace filler wasn't injected into the certificate
+    assert res_bala["cert_title_1"].count("holds absolute, clear, and marketable title over the properties and is legally competent") == 0
+

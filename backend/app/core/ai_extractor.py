@@ -27,6 +27,7 @@ from backend.app.core.deed_models import (
     format_deed_phrase,
     generate_multi_paragraph_trace,
     strip_land_price_from_trace,
+    format_certificate_of_title,
     clean_party_name,
     clean_village,
     clean_extent,
@@ -160,6 +161,13 @@ CRITICAL RULES:
      7. STRICTLY NO LAND PRICE / SALE CONSIDERATION IN TRACES:
         - In all narrative trace paragraphs, NEVER include the purchase price, consideration amount, or monetary figures (e.g. Rs. 10,30,000/-, for a consideration of Rs..., RTGS amount, etc.).
         - Focus strictly on legal title passing, document registration details, and physical possession. Use phrases like "for a valuable sale consideration" without quoting numbers or rupee amounts.
+
+     8. DYNAMIC CERTIFICATE OF TITLE & NO ENCUMBRANCE WORDING:
+        - In Section 4 (Certificate of Title, Encumbrance, and Final Scrutiny Opinion):
+          * Replace dummy template borrower/title holder names (e.g. "M.Anandan, S/o.Mayilsamy Kavundar", "K.MUTHULAKSHMI, W/o G.Kumar", "Gopalan") with the actual current borrower/title holder from the uploaded document.
+          * Replace dummy template locations (e.g. "Pollachi Taluk Mannur Village") with the actual property location.
+          * Keep the formal statutory banking certification boilerplate completely intact (e.g. "(Original fee receipts enclosed). I certify that [Borrower] has an absolute, clear and marketable title over the property.").
+          * NEVER overwrite Certificate of Title fields with repeated Section 2 trace filler sentences!
 
 3. SOURCE CITATION & PAGE TRACEABILITY:
    - For every extracted or synthesized value, specify the exact `source_document` (filename), the `source_page` (integer page number from the header `[Document: ... | Page X]`), and a `source_snippet` (the exact sentence containing the match).
@@ -915,6 +923,9 @@ def classify_field(field: HighlightedField) -> str:
         or "examined the original title deeds" in orig_lower
         or "perfect evidence of right" in orig_lower
         or "documents to be obtained by the bank" in orig_lower
+        or "fee receipts enclosed" in orig_lower
+        or "original fee receipts" in orig_lower
+        or "marketable title over the property" in orig_lower
     ):
         if len(orig) <= 60 and any(k in orig_lower for k in ["village", "taluk", "mannur", "pollachi"]):
             return "village"
@@ -926,7 +937,11 @@ def classify_field(field: HighlightedField) -> str:
         return "trace_paragraph_1"
 
     if len(orig) > 80:
-        if not any(neg in orig_lower for neg in ["certify that", "by way of equitable mortgage", "examined the original title deeds", "perfect evidence of right"]):
+        if not any(neg in orig_lower for neg in [
+            "certify that", "certificate of title", "by way of equitable mortgage",
+            "examined the original title deeds", "perfect evidence of right",
+            "fee receipts enclosed", "original fee receipts", "marketable title over the property"
+        ]):
             if any(k in orig_lower or k in marker_ctx for k in [
                 "schedule properties", "registered partition", "co-sharers divided",
                 "ancestral and joint family", "originally belonged to", "originally formed part",
@@ -2080,6 +2095,33 @@ def mock_heuristic_extractor(
                     found_candidates.append((val, doc.filename, 1, f"Title conclusion for {b_v}", False, "english"))
                 continue
 
+            # Section 4: Certificate of Title and No Encumbrance
+            elif field_type == "certificate_of_title":
+                if is_ganapathy_doc:
+                    cert_ctx = {
+                        "borrower": "V. LAKSHMI, W/o Vellingiri",
+                        "village": "Pannaikinaru",
+                        "sro": "Komangalam"
+                    }
+                elif is_balashanmugam_doc:
+                    cert_ctx = {
+                        "borrower": "Balashanmugam, S/o Kalimuthu Chettiyar",
+                        "village": "Thensangampalayam",
+                        "sro": "Anaimalai"
+                    }
+                elif is_subbiah_doc:
+                    cert_ctx = {
+                        "borrower": "K.MUTHULAKSHMI, W/o G.Kumar",
+                        "village": "Mannur",
+                        "sro": "Pollachi"
+                    }
+                else:
+                    cert_ctx = dict(extracted_ctx)
+
+                formatted_val = format_certificate_of_title(field.original_text, cert_ctx)
+                found_candidates.append((formatted_val, doc.filename, 1, "Certificate of title dynamic formatting", True, "english"))
+                continue
+
             # Section 2: Trace of Title Body Paragraphs
             elif field_type in ("trace_of_title", "trace_paragraph_1", "trace_paragraph_2", "trace_paragraph_3", "trace_paragraph_extra"):
                 if not is_title_template:
@@ -2155,7 +2197,11 @@ def mock_heuristic_extractor(
                     if not f.is_table_cell 
                     and not f.original_text.strip().lower().startswith("(tracing")
                     and not f.original_text.strip().lower().startswith("thus the title")
-                    and not any(neg in f.original_text.lower() for neg in ["certify that", "certificate of title", "by way of equitable mortgage", "examined the original title deeds", "perfect evidence of right"])
+                    and not any(neg in f.original_text.lower() for neg in [
+                        "certify that", "certificate of title", "by way of equitable mortgage",
+                        "examined the original title deeds", "perfect evidence of right",
+                        "fee receipts enclosed", "original fee receipts", "marketable title over the property"
+                    ])
                     and classify_field(f) in ("trace_of_title", "trace_paragraph_1", "trace_paragraph_2", "trace_paragraph_3", "trace_paragraph_extra")
                 ]
 
@@ -2902,7 +2948,11 @@ async def extract_fields_with_ai(
                 confidence = 0.95
 
             # 3. Intercept hallucinated person names or survey tokens in large narrative paragraphs or extra notes (Only for Title Scrutiny templates)
-            if is_title_template and not any(neg in field.original_text.lower() for neg in ["certify that", "certificate of title", "by way of equitable mortgage", "examined the original title deeds", "perfect evidence of right"]) and (f_type in ("trace_paragraph_extra", "trace_paragraph_2", "trace_paragraph_3") or (len(field.original_text) > 80 and not field.is_table_cell)):
+            if is_title_template and not any(neg in field.original_text.lower() for neg in [
+                "certify that", "certificate of title", "by way of equitable mortgage",
+                "examined the original title deeds", "perfect evidence of right",
+                "fee receipts enclosed", "original fee receipts", "marketable title over the property"
+            ]) and (f_type in ("trace_paragraph_extra", "trace_paragraph_2", "trace_paragraph_3") or (len(field.original_text) > 80 and not field.is_table_cell)):
                 if val is not None and isinstance(val, str) and len(val.strip()) > 0:
                     val_clean = val.strip()
                     if len(val_clean) < 70 and not any(val_clean.lower().startswith(prefix) for prefix in ["the properties", "subsequently", "since", "will", "as per", "thus", "under", "following", "on perusal", "on verification"]):
@@ -2911,7 +2961,11 @@ async def extract_fields_with_ai(
                             if not f.is_table_cell 
                             and not f.original_text.strip().lower().startswith("(tracing")
                             and not f.original_text.strip().lower().startswith("thus the title")
-                            and not any(neg in f.original_text.lower() for neg in ["certify that", "certificate of title", "by way of equitable mortgage", "examined the original title deeds", "perfect evidence of right"])
+                            and not any(neg in f.original_text.lower() for neg in [
+                                "certify that", "certificate of title", "by way of equitable mortgage",
+                                "examined the original title deeds", "perfect evidence of right",
+                                "fee receipts enclosed", "original fee receipts", "marketable title over the property"
+                            ])
                             and classify_field(f) in ("trace_of_title", "trace_paragraph_1", "trace_paragraph_2", "trace_paragraph_3", "trace_paragraph_extra")
                         ]
                         idx = trace_body_fields.index(field) if field in trace_body_fields else 0
@@ -2923,7 +2977,30 @@ async def extract_fields_with_ai(
                         status = "extracted"
                         snippet = f"Trace of Title Paragraph {idx+1}"
 
-            # 4. Sanitize values to prevent label prefixes, duplicated Village suffixes, or gender placeholders
+            # 4. Format Certificate of Title and No Encumbrance sections
+            if is_title_template and (
+                f_type == "certificate_of_title"
+                or any(k in field.original_text.lower() for k in [
+                    "certify that", "certificate of title", "fee receipts enclosed",
+                    "original fee receipts", "marketable title over the property"
+                ])
+            ):
+                src_str = " ".join([d.full_text for d in source_docs])
+                cert_ctx = extract_legal_entities_from_text(src_str)
+                extracted_borrower = None
+                for f_other in fields:
+                    if classify_field(f_other) == "borrower":
+                        b_res = results_by_id.get(f_other.field_id, {})
+                        if b_res.get("value"):
+                            extracted_borrower = clean_party_name(b_res["value"])
+                            break
+                if extracted_borrower:
+                    cert_ctx["borrower"] = extracted_borrower
+                val = format_certificate_of_title(val or field.original_text, cert_ctx)
+                status = "extracted"
+                confidence = 0.95
+
+            # 5. Sanitize values to prevent label prefixes, duplicated Village suffixes, or gender placeholders
             if val is not None and isinstance(val, str):
                 orig_lower = field.original_text.lower()
                 ctx_lower = field.context_with_marker.lower()
