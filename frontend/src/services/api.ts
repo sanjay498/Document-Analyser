@@ -1317,10 +1317,11 @@ export async function downloadAdminDocument(documentId: string, filename: string
 // Intelligent Legal Template Question Answering API Client
 // ---------------------------------------------------------------------------
 
-export async function createQASession(): Promise<{ session_id: string; status: string }> {
+export async function createQASession(clientId?: string): Promise<{ session_id: string; status: string }> {
   const res = await fetch(`${API_BASE}/qa/sessions/create`, {
     method: 'POST',
     headers: getAuthHeaders(),
+    body: clientId ? JSON.stringify({ client_id: clientId }) : undefined,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Failed to create QA session' }));

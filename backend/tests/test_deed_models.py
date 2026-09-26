@@ -911,4 +911,33 @@ def test_arbitrary_different_document_dynamic_extraction_and_replacement():
         assert forbidden not in all_gen_text, f"Generated doc leaked forbidden string '{forbidden}'!"
 
 
+def test_strip_land_price_from_trace():
+    from backend.app.core.deed_models import strip_land_price_from_trace, generate_multi_paragraph_trace
+
+    sample_with_rtgs = (
+        "registered as Document No.1931/2026 in Book 1 in the office of the Sub-Registrar of Komangalam "
+        "for a valuable sale consideration of Rs.10,30,000/- (Rupees Ten Lakhs Thirty Thousand only) "
+        "transferred via RTGS from Bank of Baroda to ICICI Bank. As per the recitals, possession was handed over."
+    )
+    cleaned = strip_land_price_from_trace(sample_with_rtgs)
+    assert "Rs." not in cleaned
+    assert "10,30,000" not in cleaned
+    assert "Rupees Ten Lakhs" not in cleaned
+    assert "RTGS" not in cleaned
+    assert "for a valuable sale consideration" in cleaned
+    assert "possession was handed over" in cleaned
+
+    sample_with_kist = "measuring an extent of 0.52.0 Hectare (1.28 Acres) with an annual kist of Rs.1.44. Continuous possession."
+    cleaned_kist = strip_land_price_from_trace(sample_with_kist)
+    assert "Rs.1.44" not in cleaned_kist
+    assert "annual kist duly assessed" in cleaned_kist
+
+    # Verify generate_multi_paragraph_trace produces no prices across any deed model
+    paras = generate_multi_paragraph_trace("sale_deed", paragraph_count=5)
+    for p in paras:
+        assert "Rs." not in p
+        assert "INR" not in p
+        assert "/-" not in p
+
+
 

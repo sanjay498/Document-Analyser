@@ -34,6 +34,10 @@ router = APIRouter(prefix="/api/qa", tags=["legal-template-qa"])
 # ---------------------------------------------------------------------------
 # Request & Response Schemas
 # ---------------------------------------------------------------------------
+class CreateSessionRequest(BaseModel):
+    client_id: Optional[str] = None
+
+
 class CreateSessionResponse(BaseModel):
     session_id: str
     status: str
@@ -110,6 +114,7 @@ class UseAsNextTemplateRequest(BaseModel):
 # ---------------------------------------------------------------------------
 @router.post("/sessions/create", response_model=CreateSessionResponse)
 async def create_qa_session(
+    payload: Optional[CreateSessionRequest] = None,
     db: AsyncSession = Depends(get_db),
     user: Optional[User] = Depends(get_current_user_optional)
 ):
@@ -118,6 +123,7 @@ async def create_qa_session(
     session = TemplateQASession(
         id=session_id,
         user_id=user.id if user else None,
+        client_id=payload.client_id if payload else None,
         template_filename="untitled_template.docx",
         status="created"
     )

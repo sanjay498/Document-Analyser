@@ -2,7 +2,6 @@ import React from 'react';
 import {
   FileText,
   Users,
-  FileQuestion,
   FolderOpen,
   Highlighter,
   History as HistoryIcon,
@@ -99,22 +98,6 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Users className="w-3.5 h-3.5 text-amber-400" />
             <span>Clients</span>
-          </button>
-
-          <button
-            onClick={() => onSelectTab('qa')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-              activeTab === 'qa'
-                ? 'bg-slate-800 text-amber-300 border border-amber-500/30'
-                : 'text-slate-400 hover:text-amber-200 hover:bg-slate-800/40'
-            }`}
-            title="Intelligent Legal Template Question Answering"
-          >
-            <FileQuestion className="w-3.5 h-3.5 text-amber-400" />
-            <span>Template Q&A</span>
-            <span className="text-[9px] font-bold text-amber-400 bg-amber-400/10 px-1 py-0.2 rounded border border-amber-400/20">
-              NEW
-            </span>
           </button>
 
           <button

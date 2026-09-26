@@ -949,9 +949,90 @@ def format_deed_phrase(model_id: str, context: Optional[Dict[str, Any]] = None) 
         formatted = re.sub(r'\(\s*([A-Za-z\s]+)\s+Village\s+Village\s*\)', r'\1 Village', formatted, flags=re.IGNORECASE)
         formatted = re.sub(r'\bshe/he\b|\bhe/she\b', 'the said absolute owner', formatted, flags=re.IGNORECASE)
         formatted = re.sub(r'\boriginally belongs to\b', 'originally belonged to', formatted, flags=re.IGNORECASE)
+        formatted = strip_land_price_from_trace(formatted)
         return formatted
     except Exception:
-        return model.sample_text
+        return strip_land_price_from_trace(model.sample_text)
+
+
+def strip_land_price_from_trace(text: str) -> str:
+    """
+    Strips out all mentions of land prices, consideration amounts, and rupee values
+    from trace of title narratives so that legal title scrutiny focuses strictly on
+    ownership passage, document validity, and physical possession without mentioning price.
+    """
+    if not text:
+        return text
+
+    t = text
+    # 1. "for a valuable sale consideration of Rs. 10,30,000/- (...) transferred via RTGS..." -> "for a valuable sale consideration"
+    t = re.sub(
+        r'for a valuable (?:sale )?consideration of (?:Rs\.?|INR)?\s*[\d,]+(?:\/-)?(?:\s*\([A-Za-z\s]+\s*(?:only)?\))?(?:\s*transferred via [^.,;]+)?',
+        'for a valuable sale consideration',
+        t,
+        flags=re.IGNORECASE
+    )
+    # 2. "for a (sale )?consideration of Rs..." -> "for a valuable consideration"
+    t = re.sub(
+        r'for a (?:sale )?consideration of (?:Rs\.?|INR)?\s*[\d,]+(?:\/-)?(?:\s*\([A-Za-z\s]+\s*(?:only)?\))?',
+        'for a valuable consideration',
+        t,
+        flags=re.IGNORECASE
+    )
+    # 3. "for a sum of Rs. 10,00,000/- (...)" -> ""
+    t = re.sub(
+        r'for a sum of (?:Rs\.?|INR)?\s*[\d,]+(?:\/-)?(?:\s*\([A-Za-z\s]+\s*(?:only)?\))?',
+        '',
+        t,
+        flags=re.IGNORECASE
+    )
+    # 4. "for a total consideration of Rs..." -> "for a valuable consideration"
+    t = re.sub(
+        r'for a total consideration of (?:Rs\.?|INR)?\s*[\d,]+(?:\/-)?(?:\s*\([A-Za-z\s]+\s*(?:only)?\))?',
+        'for a valuable consideration',
+        t,
+        flags=re.IGNORECASE
+    )
+    # 5. "consideration of Rs. 10,000/- (...)" -> "valuable consideration"
+    t = re.sub(
+        r'(?:sale )?consideration of (?:Rs\.?|INR)?\s*[\d,]+(?:\/-)?(?:\s*\([A-Za-z\s]+\s*(?:only)?\))?',
+        'valuable consideration',
+        t,
+        flags=re.IGNORECASE
+    )
+    # 6. "sale price of Rs..." -> ""
+    t = re.sub(
+        r'(?:sale )?price of (?:Rs\.?|INR)?\s*[\d,]+(?:\/-)?(?:\s*\([A-Za-z\s]+\s*(?:only)?\))?',
+        '',
+        t,
+        flags=re.IGNORECASE
+    )
+    # 7. "rent fixed for the properties Rs. 30,000/- p.a." -> "rent fixed as per agreement"
+    t = re.sub(
+        r'rent fixed for the properties (?:Rs\.?|INR)?\s*[\d,]+(?:\/-)?\s*p\.a\.?',
+        'rent fixed as per the agreement',
+        t,
+        flags=re.IGNORECASE
+    )
+    # 8. "annual kist of Rs. 1.44" -> "annual kist duly assessed"
+    t = re.sub(
+        r'annual kist of (?:Rs\.?|INR)?\s*[\d.]+',
+        'annual kist duly assessed',
+        t,
+        flags=re.IGNORECASE
+    )
+    # 9. Clean any general leftover "Rs. 10,00,000/- (Rupees Ten Lakhs only)" in traces
+    t = re.sub(
+        r'(?:Rs\.?|INR)\s*[\d,]+(?:\/-)?(?:\s*\([A-Za-z\s]+\s*(?:only)?\))?',
+        '',
+        t,
+        flags=re.IGNORECASE
+    )
+    # 10. Clean any double spaces or awkward punctuation
+    t = re.sub(r'\s{2,}', ' ', t)
+    t = re.sub(r'\s+\.', '.', t)
+    t = re.sub(r'\s+,', ',', t)
+    return t.strip()
 
 
 def generate_multi_paragraph_trace(
@@ -1066,7 +1147,7 @@ def generate_multi_paragraph_trace(
         gan_stage2 = (
             "Following the acquisition under registered Sale deed dated 24.10.2018 (Doc No.2874/2018), the revenue authorities duly sanctioned "
             "subdivision of S.F.No.84/A into S.F.No.84/A1 and S.F.No.84/A2, and issued computerized Patta No.2335 exclusively in the name of "
-            "C. Ganapathy, S/o Chinnan for S.F.No.84/A2 measuring an extent of 0.52.0 Hectare (1.28 Acres) with an annual kist of Rs.1.44. "
+            "C. Ganapathy, S/o Chinnan for S.F.No.84/A2 measuring an extent of 0.52.0 Hectare (1.28 Acres) with annual kist duly assessed. "
             "Computerized Chitta extract (Ref: 2026/0105/32/002062), FMB Sketch approved by the Tahsildar of Udumalaipettai, Adangal, and "
             "Possession Certificate issued by the Village Administrative Officer (VAO), Pannaikinaru Village confirm uninterrupted continuous ownership and cultivation."
         )
@@ -1074,9 +1155,8 @@ def generate_multi_paragraph_trace(
             "Subsequently, while holding absolute ownership and unencumbered possession, C. Ganapathy, S/o Chinnan sold and conveyed the "
             "property in S.F.No.84/A2 measuring an extent of 0.52.0 Hectare (1.28 Acres) situated at Pannaikinaru Village along with north-south "
             "cart-track and pathway rights to V. Lakshmi, W/o Vellingiri under the registered Sale deed dated 04.06.2026, registered as "
-            "Document No.1931/2026 in Book 1 in the office of the Sub-Registrar of Komangalam for a valuable sale consideration of "
-            "Rs.10,30,000/- (Rupees Ten Lakhs Thirty Thousand only) transferred via RTGS from Bank of Baroda Chellakkaraipalayam Branch to "
-            "ICICI Bank Pollachi Branch. As per the recitals, possession was handed over to V. Lakshmi on the date of execution. Since the vendor "
+            "Document No.1931/2026 in Book 1 in the office of the Sub-Registrar of Komangalam for a valuable sale consideration. "
+            "As per the recitals, possession was handed over to V. Lakshmi on the date of execution. Since the vendor "
             "C. Ganapathy retains other properties covered under the parent deed Doc No.2874/2018, a certified/registration copy of the parent deed "
             "has been furnished along with the original title deed Doc No.1931/2026."
         )
@@ -1156,24 +1236,27 @@ def generate_multi_paragraph_trace(
         )
         stages = [stage1, stage2, stage3, stage4, stage5]
 
+    # Clean all stages to strictly exclude land prices / consideration amounts
+    cleaned_stages = [strip_land_price_from_trace(s) for s in stages]
+
     # Map the stages into exactly `paragraph_count` paragraphs
     if paragraph_count == 1:
-        return [stages[0]]
+        return [cleaned_stages[0]]
     elif paragraph_count == 2:
-        return [stages[0], stages[2] if len(stages) > 2 else stages[1]]
+        return [cleaned_stages[0], cleaned_stages[2] if len(cleaned_stages) > 2 else cleaned_stages[1]]
     elif paragraph_count == 3:
-        return [stages[0], stages[2], stages[4]]
+        return [cleaned_stages[0], cleaned_stages[2], cleaned_stages[4] if len(cleaned_stages) > 4 else cleaned_stages[-1]]
     elif paragraph_count == 4:
-        return [stages[0], stages[1], stages[2], stages[4]]
+        return [cleaned_stages[0], cleaned_stages[1], cleaned_stages[2], cleaned_stages[4] if len(cleaned_stages) > 4 else cleaned_stages[-1]]
     elif paragraph_count == 5:
-        return stages[:5]
+        return cleaned_stages[:5]
     else:
-        res = list(stages)
+        res = list(cleaned_stages)
         while len(res) < paragraph_count:
             res.append(
                 f"The title holder {p_allottee} holds absolute, clear, and marketable title over the properties and is legally competent to create mortgage security."
             )
-        return res[:paragraph_count]
+        return [strip_land_price_from_trace(x) for x in res[:paragraph_count]]
 
 
 

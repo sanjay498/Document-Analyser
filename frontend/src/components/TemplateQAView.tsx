@@ -24,7 +24,8 @@ import {
 import type {
   TemplateQuestion,
   QuestionAnswer,
-  SourceDocSummary
+  SourceDocSummary,
+  Client
 } from '../types';
 import {
   createQASession,
@@ -39,7 +40,15 @@ import {
   useQADocAsNextTemplate
 } from '../services/api';
 
-export const TemplateQAView: React.FC = () => {
+interface TemplateQAViewProps {
+  activeClient?: Client | null;
+  onNavigateToWorkspace?: () => void;
+}
+
+export const TemplateQAView: React.FC<TemplateQAViewProps> = ({
+  activeClient,
+  onNavigateToWorkspace: _onNavigateToWorkspace,
+}) => {
   // Session & Workflow State
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [templateFilename, setTemplateFilename] = useState<string | null>(null);
@@ -80,7 +89,7 @@ export const TemplateQAView: React.FC = () => {
   const handleStartSession = async () => {
     try {
       setErrorMessage(null);
-      const res = await createQASession();
+      const res = await createQASession(activeClient?.id);
       setSessionId(res.session_id);
       return res.session_id;
     } catch (err: any) {
@@ -391,6 +400,32 @@ export const TemplateQAView: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      {/* Active Client Context Banner */}
+      {activeClient && (
+        <div className="bg-[#0b0f19] border border-amber-500/30 rounded-xl px-4 py-3 flex items-center justify-between shadow-md">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-xs border border-amber-500/30">
+              {activeClient.name.slice(0, 2).toUpperCase()}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-white">{activeClient.name}</span>
+                <span className="text-[10px] bg-slate-800 text-amber-300 px-1.5 py-0.5 rounded border border-slate-700">
+                  {activeClient.title}
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-400 flex items-center gap-3 mt-0.5">
+                <span>Phone: {activeClient.phone}</span>
+                {activeClient.email && <span>• Email: {activeClient.email}</span>}
+              </div>
+            </div>
+          </div>
+          <span className="text-[10px] font-semibold tracking-wider text-amber-400 uppercase bg-amber-400/10 px-2.5 py-1 rounded-full border border-amber-400/20">
+            Active Client Scrutiny
+          </span>
+        </div>
+      )}
+
       {/* Top Banner & Header */}
       <div className="bg-[#0b0f19] border border-slate-800 rounded-xl p-5 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

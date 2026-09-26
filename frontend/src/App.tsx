@@ -44,13 +44,14 @@ import type {
   Client,
   StartScrutinyResponse,
 } from './types';
-import { Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Sparkles, CheckCircle2, AlertCircle, FileText, FileQuestion } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [sessionId, setSessionId] = useState<string>('');
   const [isWalletModalOpen, setIsWalletModalOpen] = useState<boolean>(false);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [activeTab, setActiveTab] = useState<'workspace' | 'clients' | 'qa' | 'templates' | 'studio' | 'history' | 'wallet' | 'admin'>('workspace');
+  const [workspaceMode, setWorkspaceMode] = useState<'opinion' | 'qa'>('opinion');
   const [activeClient, setActiveClient] = useState<Client | null>(null);
   const [studioTemplateId, setStudioTemplateId] = useState<string | null>(null);
   const [isMetricsModalOpen, setIsMetricsModalOpen] = useState<boolean>(false);
@@ -113,6 +114,9 @@ export const App: React.FC = () => {
         hash === '#admin'
       ) {
         setActiveTab('admin');
+      } else if (hash === '#qa' || path === '/qa') {
+        setActiveTab('workspace');
+        setWorkspaceMode('qa');
       }
     };
     checkRoute();
@@ -125,7 +129,12 @@ export const App: React.FC = () => {
   }, []);
 
   const handleTabChange = (tab: 'workspace' | 'clients' | 'qa' | 'templates' | 'studio' | 'history' | 'wallet' | 'admin') => {
-    setActiveTab(tab);
+    if (tab === 'qa') {
+      setActiveTab('workspace');
+      setWorkspaceMode('qa');
+    } else {
+      setActiveTab(tab);
+    }
     if (tab === 'admin') {
       if (window.location.pathname !== '/management') {
         window.history.pushState(null, '', '/management');
@@ -248,6 +257,8 @@ export const App: React.FC = () => {
       setTableResults([]);
       setPreferredDeedModel('normal_partition');
       setDownloadUrl(null);
+      setWorkspaceMode('opinion');
+      setActiveTab('workspace');
       showToast('Session reset. Ready for new documents.', 'info');
     } catch (err) {
       showToast('Failed to reset session', 'error');
@@ -261,6 +272,8 @@ export const App: React.FC = () => {
     setFields(res.fields);
     setTableGroups(res.table_groups || []);
     setActiveClient(res.client);
+    setWorkspaceMode('opinion');
+    setActiveTab('workspace');
     setSources([]);
     setResults([]);
     setTableResults([]);
@@ -270,6 +283,7 @@ export const App: React.FC = () => {
 
   const handleStartScrutinyForClient = (client: Client) => {
     setActiveClient(client);
+    setWorkspaceMode('opinion');
     setSources([]);
     setResults([]);
     setTableResults([]);
@@ -498,7 +512,15 @@ export const App: React.FC = () => {
             showToast={showToast}
           />
         ) : activeTab === 'qa' ? (
-          <TemplateQAView />
+          <div className="max-w-7xl mx-auto">
+            <TemplateQAView
+              activeClient={activeClient}
+              onNavigateToWorkspace={() => {
+                setActiveTab('workspace');
+                setWorkspaceMode('opinion');
+              }}
+            />
+          </div>
         ) : activeTab === 'templates' ? (
           <TemplateManagerView
             currentSessionId={sessionId}
@@ -531,8 +553,54 @@ export const App: React.FC = () => {
           />
         ) : (
           /* ONE SCREEN. ONE CLEAR PURPOSE WORKSPACE */
-          <div className="max-w-5xl mx-auto">
-            {isExtracting ? (
+          <div className={workspaceMode === 'qa' ? 'max-w-7xl mx-auto' : 'max-w-5xl mx-auto'}>
+            {/* Seamless Single Workspace Mode Switcher (Visible in Intake) */}
+            {!isExtracting && results.length === 0 && (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 mb-6 border-b border-slate-800/80">
+                <div className="flex items-center gap-2">
+                  <div className="inline-flex p-1 rounded-xl bg-[#0b0f19] border border-slate-800 shadow-inner">
+                    <button
+                      onClick={() => setWorkspaceMode('opinion')}
+                      className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                        workspaceMode === 'opinion'
+                          ? 'bg-slate-800 text-white shadow-sm border border-slate-700/80 font-semibold'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                      title="Generate complete formal legal title opinions with deed models, revenue tracing, and docx export"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Title Opinion Scrutiny</span>
+                    </button>
+                    <button
+                      onClick={() => setWorkspaceMode('qa')}
+                      className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                        workspaceMode === 'qa'
+                          ? 'bg-slate-800 text-amber-300 shadow-sm border border-amber-500/30 font-semibold'
+                          : 'text-slate-400 hover:text-amber-200'
+                      }`}
+                      title="Intelligent legal template question answering grounded strictly in uploaded source documents"
+                    >
+                      <FileQuestion className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Template Q&A Engine</span>
+                    </button>
+                  </div>
+                </div>
+
+                {activeClient && (
+                  <div className="flex items-center gap-2 text-xs text-amber-300/90 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-lg shadow-sm">
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                    <span>Client: <strong className="text-white">{activeClient.name}</strong> ({activeClient.title})</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {workspaceMode === 'qa' ? (
+              <TemplateQAView
+                activeClient={activeClient}
+                onNavigateToWorkspace={() => setWorkspaceMode('opinion')}
+              />
+            ) : isExtracting ? (
               /* STAGE 2: DEDICATED PROCESSING SCREEN */
               <WorkspaceProcessing
                 templateFilename={templateFilename}

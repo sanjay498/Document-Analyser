@@ -26,6 +26,7 @@ from backend.app.core.deed_models import (
     DeedModelDef,
     format_deed_phrase,
     generate_multi_paragraph_trace,
+    strip_land_price_from_trace,
     clean_party_name,
     clean_village,
     clean_extent,
@@ -156,6 +157,9 @@ CRITICAL RULES:
         - Never output duplicate "Village Village" (output e.g. "Mannur Village", never "(Mannur Village Village)").
      6. FORMAL LEGAL GRAMMAR:
         - NEVER use "she/he" or "he/she". Always use "the said absolute owner was in continuous possession and enjoyment".
+     7. STRICTLY NO LAND PRICE / SALE CONSIDERATION IN TRACES:
+        - In all narrative trace paragraphs, NEVER include the purchase price, consideration amount, or monetary figures (e.g. Rs. 10,30,000/-, for a consideration of Rs..., RTGS amount, etc.).
+        - Focus strictly on legal title passing, document registration details, and physical possession. Use phrases like "for a valuable sale consideration" without quoting numbers or rupee amounts.
 
 3. SOURCE CITATION & PAGE TRACEABILITY:
    - For every extracted or synthesized value, specify the exact `source_document` (filename), the `source_page` (integer page number from the header `[Document: ... | Page X]`), and a `source_snippet` (the exact sentence containing the match).
@@ -2922,6 +2926,8 @@ async def extract_fields_with_ai(
                 val = re.sub(r'\(\s*([A-Za-z\s]+)\s+Village\s+Village\s*\)', r'\1 Village', val, flags=re.IGNORECASE)
                 val = re.sub(r'\bshe/he\b|\bhe/she\b', 'the said absolute owner', val, flags=re.IGNORECASE)
                 val = re.sub(r'\boriginally belongs to\b', 'originally belonged to', val, flags=re.IGNORECASE)
+                if f_type in ("trace_of_title", "trace_paragraph_1", "trace_paragraph_2", "trace_paragraph_3", "trace_paragraph_extra") or "trace" in orig_lower or "antecedent" in orig_lower or len(val) > 120:
+                    val = strip_land_price_from_trace(val)
 
             # Infer translation flag if snippet or text had Tamil
             if snippet and detect_tamil_text(snippet):

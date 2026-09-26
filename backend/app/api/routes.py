@@ -899,6 +899,7 @@ async def apply_deed_model_to_session(
 
     # Format the new phrase and multi-paragraph sequence
     model_def = DEED_MODELS.get(payload.model_id, DEED_MODELS["normal_partition"])
+    formatted_phrase = format_deed_phrase(payload.model_id, ctx)
 
     # First update conclusion if present
     for r in raw_results:
