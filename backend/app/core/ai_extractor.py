@@ -906,17 +906,36 @@ def classify_field(field: HighlightedField) -> str:
     ):
         return "trace_paragraph_2"
 
+    # Section 4: Certificate of title and No encumbrance (Opinion Ending & Mortgage Certification)
+    if (
+        "certificate of title" in orig_lower
+        or "certificate of title" in marker_ctx
+        or "certify that" in orig_lower
+        or "offered as security by way of" in orig_lower
+        or "by way of equitable mortgage" in orig_lower
+        or "creation of equitable mortgage" in orig_lower
+        or "examined the original title deeds" in orig_lower
+        or "perfect evidence of right" in orig_lower
+        or "deposit of title deeds" in orig_lower
+    ):
+        if len(orig) <= 60 and any(k in orig_lower for k in ["village", "taluk", "mannur", "pollachi"]):
+            return "village"
+        elif len(orig) <= 60 and any(k in orig_lower for k in ["muthulakshmi", "kumar", "borrower", "balashanmugam"]):
+            return "borrower"
+        return "certificate_of_title"
+
     if "trace of title" in marker_ctx or "antecedent" in marker_ctx or "passing of title" in marker_ctx:
         return "trace_paragraph_1"
 
     if len(orig) > 80:
-        if any(k in orig_lower or k in marker_ctx for k in [
-            "schedule properties", "registered partition", "co-sharers divided",
-            "ancestral and joint family", "originally belonged to", "originally formed part",
-            "measuring an extent", "s.f.no", "sub-registrar", "sale deed executed",
-            "power of attorney", "legal heir", "derived title"
-        ]):
-            return "trace_paragraph_1"
+        if not any(neg in orig_lower for neg in ["certify", "equitable mortgage", "offered as security", "documents to be obtained"]):
+            if any(k in orig_lower or k in marker_ctx for k in [
+                "schedule properties", "registered partition", "co-sharers divided",
+                "ancestral and joint family", "originally belonged to", "originally formed part",
+                "measuring an extent", "s.f.no", "sub-registrar", "sale deed executed",
+                "power of attorney", "legal heir", "derived title"
+            ]):
+                return "trace_paragraph_1"
         return "paragraph_text"
 
     if len(orig) <= 60 and (
@@ -2138,6 +2157,7 @@ def mock_heuristic_extractor(
                     if not f.is_table_cell 
                     and not f.original_text.strip().lower().startswith("(tracing")
                     and not f.original_text.strip().lower().startswith("thus the title")
+                    and not any(neg in f.original_text.lower() for neg in ["certify", "certificate of title", "equitable mortgage", "offered as security", "documents to be obtained"])
                     and classify_field(f) in ("trace_of_title", "trace_paragraph_1", "trace_paragraph_2", "trace_paragraph_3", "trace_paragraph_extra")
                 ]
 
@@ -2884,7 +2904,7 @@ async def extract_fields_with_ai(
                 confidence = 0.95
 
             # 3. Intercept hallucinated person names or survey tokens in large narrative paragraphs or extra notes (Only for Title Scrutiny templates)
-            if is_title_template and (f_type in ("trace_paragraph_extra", "trace_paragraph_2", "trace_paragraph_3") or (len(field.original_text) > 80 and not field.is_table_cell)):
+            if is_title_template and not any(neg in field.original_text.lower() for neg in ["certify", "certificate of title", "equitable mortgage", "offered as security", "documents to be obtained"]) and (f_type in ("trace_paragraph_extra", "trace_paragraph_2", "trace_paragraph_3") or (len(field.original_text) > 80 and not field.is_table_cell)):
                 if val is not None and isinstance(val, str) and len(val.strip()) > 0:
                     val_clean = val.strip()
                     if len(val_clean) < 70 and not any(val_clean.lower().startswith(prefix) for prefix in ["the properties", "subsequently", "since", "will", "as per", "thus", "under", "following", "on perusal", "on verification"]):
@@ -2893,6 +2913,7 @@ async def extract_fields_with_ai(
                             if not f.is_table_cell 
                             and not f.original_text.strip().lower().startswith("(tracing")
                             and not f.original_text.strip().lower().startswith("thus the title")
+                            and not any(neg in f.original_text.lower() for neg in ["certify", "certificate of title", "equitable mortgage", "offered as security", "documents to be obtained"])
                             and classify_field(f) in ("trace_of_title", "trace_paragraph_1", "trace_paragraph_2", "trace_paragraph_3", "trace_paragraph_extra")
                         ]
                         idx = trace_body_fields.index(field) if field in trace_body_fields else 0

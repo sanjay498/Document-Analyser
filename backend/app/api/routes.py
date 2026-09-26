@@ -428,6 +428,7 @@ async def export_final_document(
             and not "to present document must be verified" in f.original_text.strip().lower()
             and not f.original_text.strip().lower().startswith("thus the title holder")
             and not "derived title" in f.original_text.strip().lower()
+            and not any(neg in f.original_text.lower() for neg in ["certify", "certificate of title", "equitable mortgage", "offered as security", "documents to be obtained"])
             and (
                 classify_field(f) in ("trace_of_title", "trace_paragraph_1", "trace_paragraph_2", "trace_paragraph_3", "trace_paragraph_extra")
                 or any(k in f.original_text.lower() for k in [
@@ -924,6 +925,7 @@ async def apply_deed_model_to_session(
         if not r.get("is_table_cell")
         and not (r.get("original_text") or "").strip().lower().startswith("(tracing")
         and not (r.get("original_text") or "").strip().lower().startswith("thus the title holder")
+        and not any(neg in (r.get("original_text") or "").lower() for neg in ["certify", "certificate of title", "equitable mortgage", "offered as security", "documents to be obtained"])
         and (
             any(k in (r.get("original_text") or "").lower() for k in ["sale deed executed", "partition deed", "originally", "1277/1987", "1773/1998", "history", "murugesan", "balashanmugam", "measuring an extent", "subsequently", "power of attorney", "general power", "5035", "chitta", "patta", "revenue", "possession", "correction"])
             or len(r.get("original_text") or "") > 80

@@ -1253,9 +1253,7 @@ def generate_multi_paragraph_trace(
     else:
         res = list(cleaned_stages)
         while len(res) < paragraph_count:
-            res.append(
-                f"The title holder {p_allottee} holds absolute, clear, and marketable title over the properties and is legally competent to create mortgage security."
-            )
+            res.append("")
         return [strip_land_price_from_trace(x) for x in res[:paragraph_count]]
 
 
