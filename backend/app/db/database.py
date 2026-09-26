@@ -103,6 +103,10 @@ async def init_db():
                 "ALTER TABLE payment_verifications ADD COLUMN provider_signature VARCHAR(255)",
                 "ALTER TABLE payment_verifications ADD COLUMN updated_at TIMESTAMP",
                 "ALTER TABLE template_library ADD COLUMN bank_name VARCHAR(128) DEFAULT 'General'",
+                "ALTER TABLE generation_sessions ADD COLUMN client_id VARCHAR(64)",
+                "ALTER TABLE generation_sessions ADD COLUMN template_id VARCHAR(64)",
+                "ALTER TABLE template_qa_sessions ADD COLUMN client_id VARCHAR(64)",
+                "ALTER TABLE document_history ADD COLUMN client_id VARCHAR(64)",
             ]
             for mig in migrations:
                 try:

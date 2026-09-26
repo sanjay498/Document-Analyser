@@ -26,6 +26,7 @@ from backend.app.api.payment_routes import router as payment_router
 from backend.app.api.admin_routes import router as admin_router
 from backend.app.api.gemini_routes import router as gemini_router
 from backend.app.api.qa_routes import router as qa_router
+from backend.app.api.client_routes import router as client_router
 
 load_dotenv()
 
@@ -94,6 +95,7 @@ app.include_router(payment_router)
 app.include_router(admin_router)
 app.include_router(gemini_router)
 app.include_router(qa_router)
+app.include_router(client_router)
 
 
 @app.get("/health")

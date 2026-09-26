@@ -153,6 +153,8 @@ async def get_session(session_id: str, db: AsyncSession = Depends(get_db)):
 
     return {
         "session_id": session.id,
+        "client_id": session.client_id,
+        "template_id": session.template_id,
         "status": session.status,
         "template_filename": session.template_filename,
         "fields": json.loads(session.fields_json or "[]"),
@@ -524,6 +526,7 @@ async def export_final_document(
         id=history_id,
         user_id=user_id,
         session_id=session.id,
+        client_id=session.client_id,
         template_filename=session.template_filename or "generated_document.docx",
         sources_summary_json=session.sources_json or "[]",
         field_values_json=json.dumps(payload.field_values),

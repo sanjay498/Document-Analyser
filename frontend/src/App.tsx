@@ -16,6 +16,7 @@ import { WalletModal } from './components/WalletModal';
 import { WalletView } from './components/WalletView';
 import { AdminDashboardView } from './components/AdminDashboardView';
 import { TemplateQAView } from './components/TemplateQAView';
+import { ClientsView } from './components/ClientsView';
 import {
   createSession,
   uploadTemplate,
@@ -30,6 +31,7 @@ import {
   getHealthStatus,
   getSessionState,
   switchBackToUser,
+  getClientDetail,
 } from './services/api';
 import type {
   HighlightedField,
@@ -39,6 +41,8 @@ import type {
   DynamicTableGroupResult,
   UserProfile,
   UseTemplateResponse,
+  Client,
+  StartScrutinyResponse,
 } from './types';
 import { Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
 
@@ -46,7 +50,8 @@ export const App: React.FC = () => {
   const [sessionId, setSessionId] = useState<string>('');
   const [isWalletModalOpen, setIsWalletModalOpen] = useState<boolean>(false);
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [activeTab, setActiveTab] = useState<'workspace' | 'qa' | 'templates' | 'studio' | 'history' | 'wallet' | 'admin'>('workspace');
+  const [activeTab, setActiveTab] = useState<'workspace' | 'clients' | 'qa' | 'templates' | 'studio' | 'history' | 'wallet' | 'admin'>('workspace');
+  const [activeClient, setActiveClient] = useState<Client | null>(null);
   const [studioTemplateId, setStudioTemplateId] = useState<string | null>(null);
   const [isMetricsModalOpen, setIsMetricsModalOpen] = useState<boolean>(false);
 
@@ -119,7 +124,7 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  const handleTabChange = (tab: 'workspace' | 'qa' | 'templates' | 'studio' | 'history' | 'wallet' | 'admin') => {
+  const handleTabChange = (tab: 'workspace' | 'clients' | 'qa' | 'templates' | 'studio' | 'history' | 'wallet' | 'admin') => {
     setActiveTab(tab);
     if (tab === 'admin') {
       if (window.location.pathname !== '/management') {
@@ -175,6 +180,14 @@ export const App: React.FC = () => {
               if (state.sources) setSources(state.sources);
               if (state.results) setResults(state.results);
               if (state.table_results) setTableResults(state.table_results);
+              if (state.client_id) {
+                try {
+                  const cl = await getClientDetail(state.client_id);
+                  setActiveClient(cl);
+                } catch (e) {
+                  console.warn('Could not restore client for session', e);
+                }
+              }
               restored = true;
             }
           } catch (e) {
@@ -227,6 +240,7 @@ export const App: React.FC = () => {
       setSessionId(sess.session_id);
       localStorage.setItem('lex_title_session_id', sess.session_id);
       setTemplateFilename(undefined);
+      setActiveClient(null);
       setFields([]);
       setTableGroups([]);
       setSources([]);
@@ -238,6 +252,30 @@ export const App: React.FC = () => {
     } catch (err) {
       showToast('Failed to reset session', 'error');
     }
+  };
+
+  const handleScrutinySessionReady = (res: StartScrutinyResponse) => {
+    setSessionId(res.session_id);
+    localStorage.setItem('lex_title_session_id', res.session_id);
+    setTemplateFilename(res.template_filename);
+    setFields(res.fields);
+    setTableGroups(res.table_groups || []);
+    setActiveClient(res.client);
+    setSources([]);
+    setResults([]);
+    setTableResults([]);
+    setDownloadUrl(null);
+    showToast(`Scrutiny session started for ${res.client.name} using "${res.template_filename}"`, 'success');
+  };
+
+  const handleStartScrutinyForClient = (client: Client) => {
+    setActiveClient(client);
+    setSources([]);
+    setResults([]);
+    setTableResults([]);
+    setDownloadUrl(null);
+    setActiveTab('workspace');
+    showToast(`Selected client "${client.name}". Choose a template to begin scrutiny.`, 'info');
   };
 
   // Upload Template
@@ -308,6 +346,7 @@ export const App: React.FC = () => {
 
   const handleClearTemplate = () => {
     setTemplateFilename(undefined);
+    setActiveClient(null);
     setFields([]);
     setTableGroups([]);
     showToast('Removed template.', 'info');
@@ -452,6 +491,12 @@ export const App: React.FC = () => {
             }}
             showToast={showToast}
           />
+        ) : activeTab === 'clients' ? (
+          <ClientsView
+            onStartScrutinyForClient={handleStartScrutinyForClient}
+            onNavigateToWorkspace={() => handleTabChange('workspace')}
+            showToast={showToast}
+          />
         ) : activeTab === 'qa' ? (
           <TemplateQAView />
         ) : activeTab === 'templates' ? (
@@ -528,6 +573,10 @@ export const App: React.FC = () => {
                 preferredDeedModel={preferredDeedModel}
                 onSelectDeedModel={(m) => setPreferredDeedModel(m)}
                 onStartScrutiny={() => handleExtract('free_ai_model', preferredDeedModel)}
+                activeClient={activeClient}
+                onScrutinySessionReady={handleScrutinySessionReady}
+                onClearActiveClient={() => setActiveClient(null)}
+                showToast={showToast}
               />
             )}
           </div>

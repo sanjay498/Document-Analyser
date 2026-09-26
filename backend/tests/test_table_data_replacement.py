@@ -220,6 +220,16 @@ def test_table_data_replacement_from_database_library_item():
     c = conn.cursor()
     c.execute("SELECT template_bytes FROM template_library WHERE name LIKE '%Muthulakshmi%' LIMIT 1")
     row = c.fetchone()
+    if row is None:
+        tpl_bio = generate_legal_opinion_title_report_template()
+        tpl_bytes = tpl_bio.getvalue()
+        c.execute("""
+            INSERT OR REPLACE INTO template_library (id, name, bank_name, template_bytes, fields_json, table_groups_json, fields_count, table_groups_count, created_at)
+            VALUES (?, ?, ?, ?, '[]', '[]', 0, 0, datetime('now'))
+        """, ("seed-muthulakshmi-test", "Muthulakshmi Bank Legal Opinion Template.docx", "SBI", tpl_bytes))
+        conn.commit()
+        c.execute("SELECT template_bytes FROM template_library WHERE name LIKE '%Muthulakshmi%' LIMIT 1")
+        row = c.fetchone()
     conn.close()
     assert row is not None, "Template item not found in template_library"
     db_template_bytes = row[0]

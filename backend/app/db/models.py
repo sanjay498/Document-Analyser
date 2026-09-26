@@ -290,11 +290,36 @@ class SystemPricingConfig(Base):
 
 
 # Document generation and session models
+class Client(Base):
+    """
+    Client model for LexTitle AI scrutiny workflows.
+    Permanently stores client identifying information and title matter reference.
+    Maintains a 1-to-many relationship with scrutiny sessions and document history items.
+    """
+    __tablename__ = "clients"
+
+    id = Column(String(64), primary_key=True, index=True)
+    user_id = Column(String(64), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    name = Column(String(255), nullable=False, index=True)
+    phone = Column(String(32), nullable=False, index=True)
+    email = Column(String(255), nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+    # Relationships
+    sessions = relationship("GenerationSession", back_populates="client")
+    qa_sessions = relationship("TemplateQASession", back_populates="client")
+    history_items = relationship("DocumentHistoryItem", back_populates="client")
+
+
 class GenerationSession(Base):
     __tablename__ = "generation_sessions"
 
     id = Column(String(64), primary_key=True, index=True)
     user_id = Column(String(64), nullable=True, index=True)
+    client_id = Column(String(64), ForeignKey("clients.id", ondelete="SET NULL"), nullable=True, index=True)
+    template_id = Column(String(64), ForeignKey("template_library.id", ondelete="SET NULL"), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), default=utc_now)
     template_filename = Column(String(255), nullable=True)
     template_bytes = Column(LargeBinary, nullable=True)
@@ -306,6 +331,9 @@ class GenerationSession(Base):
     results_json = Column(Text, nullable=True)
     table_results_json = Column(Text, nullable=True)
     final_docx_bytes = Column(LargeBinary, nullable=True)
+
+    client = relationship("Client", back_populates="sessions")
+    template = relationship("TemplateLibraryItem")
 
 
 class TemplateLibraryItem(Base):
@@ -339,6 +367,7 @@ class DocumentHistoryItem(Base):
     id = Column(String(64), primary_key=True, index=True)
     user_id = Column(String(64), nullable=True, index=True)
     session_id = Column(String(64), nullable=True, index=True)
+    client_id = Column(String(64), ForeignKey("clients.id", ondelete="SET NULL"), nullable=True, index=True)
     template_filename = Column(String(255), nullable=False)
     generated_at = Column(DateTime(timezone=True), default=utc_now)
     sources_summary_json = Column(Text, nullable=True)
@@ -346,6 +375,8 @@ class DocumentHistoryItem(Base):
     table_records_json = Column(Text, nullable=True)
     docx_bytes = Column(LargeBinary, nullable=False)
     status = Column(String(50), default="completed")
+
+    client = relationship("Client", back_populates="history_items")
 
 
 class BatchJob(Base):
@@ -387,6 +418,7 @@ class TemplateQASession(Base):
 
     id = Column(String(64), primary_key=True, index=True)
     user_id = Column(String(64), nullable=True, index=True)
+    client_id = Column(String(64), ForeignKey("clients.id", ondelete="SET NULL"), nullable=True, index=True)
     template_filename = Column(String(255), nullable=False)
     template_bytes = Column(LargeBinary, nullable=True)
     status = Column(String(50), default="created")  # created, template_parsed, sources_uploaded, qa_completed, report_generated
@@ -396,4 +428,6 @@ class TemplateQASession(Base):
     final_docx_bytes = Column(LargeBinary, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    client = relationship("Client", back_populates="qa_sessions")
 

@@ -33,6 +33,11 @@ import type {
   QuestionAnswer,
   QASessionState,
   SourceDocSummary,
+  Client,
+  ClientDetailResponse,
+  CreateClientRequest,
+  CheckExistingClientResponse,
+  StartScrutinyResponse,
 } from '../types';
 
 const API_BASE = '/api';
@@ -273,6 +278,8 @@ export async function uploadSources(sessionId: string, files: File[]): Promise<{
 
 export async function getSessionState(sessionId: string): Promise<{
   session_id: string;
+  client_id?: string;
+  template_id?: string;
   status: string;
   template_filename?: string;
   fields: HighlightedField[];
@@ -1506,6 +1513,78 @@ export async function downloadQAReport(sessionId: string, filename?: string): Pr
   a.click();
   window.URL.revokeObjectURL(url);
   document.body.removeChild(a);
+}
+
+// ---------------- CLIENT MANAGEMENT & SCRUTINY WORKFLOW APIS ----------------
+export async function getClients(search?: string): Promise<Client[]> {
+  const query = search && search.trim() ? `?search=${encodeURIComponent(search.trim())}` : '';
+  const res = await fetch(`${API_BASE}/clients${query}`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error('Failed to fetch clients');
+  return res.json();
+}
+
+export async function getClientDetail(clientId: string): Promise<ClientDetailResponse> {
+  const res = await fetch(`${API_BASE}/clients/${clientId}`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error('Failed to fetch client details');
+  return res.json();
+}
+
+export async function createClient(data: CreateClientRequest): Promise<Client> {
+  const res = await fetch(`${API_BASE}/clients`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to create client' }));
+    throw new Error(err.detail || 'Failed to create client');
+  }
+  return res.json();
+}
+
+export async function checkExistingClient(
+  phone?: string,
+  email?: string
+): Promise<CheckExistingClientResponse> {
+  const res = await fetch(`${API_BASE}/clients/check-existing`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ phone, email }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to check client' }));
+    throw new Error(err.detail || 'Failed to check client');
+  }
+  return res.json();
+}
+
+export async function startScrutinyForClient(
+  clientId: string,
+  templateId: string
+): Promise<StartScrutinyResponse> {
+  const res = await fetch(`${API_BASE}/clients/${clientId}/start-scrutiny`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ template_id: templateId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to start scrutiny for client' }));
+    throw new Error(err.detail || 'Failed to start scrutiny for client');
+  }
+  return res.json();
 }
 
 

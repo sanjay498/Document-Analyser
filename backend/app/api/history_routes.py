@@ -25,6 +25,7 @@ class HistorySummaryResponse(BaseModel):
     sources_summary: List[str]
     resolved_fields_count: int
     download_url: str
+    client_id: Optional[str] = None
 
 
 class HistoryDetailResponse(BaseModel):
@@ -35,6 +36,7 @@ class HistoryDetailResponse(BaseModel):
     field_values: Dict[str, Any]
     table_records: Dict[str, Any]
     download_url: str
+    client_id: Optional[str] = None
 
 
 @router.get("", response_model=List[HistorySummaryResponse])
@@ -61,7 +63,8 @@ async def list_history(
             generated_at=item.generated_at.isoformat() if item.generated_at else "",
             sources_summary=[s.get("filename", str(s)) if isinstance(s, dict) else str(s) for s in sources_list],
             resolved_fields_count=len(field_vals),
-            download_url=f"/api/history/{item.id}/download"
+            download_url=f"/api/history/{item.id}/download",
+            client_id=item.client_id
         ))
 
     return summaries
@@ -90,7 +93,8 @@ async def get_history_detail(
         sources=sources if isinstance(sources, list) else [],
         field_values=field_vals,
         table_records=table_recs,
-        download_url=f"/api/history/{item.id}/download"
+        download_url=f"/api/history/{item.id}/download",
+        client_id=item.client_id
     )
 
 

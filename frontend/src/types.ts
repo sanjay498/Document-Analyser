@@ -527,5 +527,57 @@ export interface QASessionState {
   documents: SourceDocSummary[];
 }
 
+// ---------------- CLIENT MANAGEMENT & SCRUTINY WORKFLOW ----------------
+export interface Client {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  scrutiny_count: number;
+}
+
+export interface ClientScrutinyHistory {
+  session_id: string;
+  template_filename: string;
+  status: string;
+  created_at: string;
+  sources_count: number;
+  sources_names: string[];
+  final_document_ready: boolean;
+  history_id?: string | null;
+}
+
+export interface ClientDetailResponse extends Client {
+  scrutinies: ClientScrutinyHistory[];
+}
+
+export interface CreateClientRequest {
+  name: string;
+  phone: string;
+  email: string;
+  title: string;
+}
+
+export interface CheckExistingClientResponse {
+  exists: boolean;
+  client?: Client | null;
+}
+
+export interface StartScrutinyResponse {
+  session_id: string;
+  client_id: string;
+  template_id: string;
+  template_filename: string;
+  bank_name: string;
+  fields_count: number;
+  table_groups_count: number;
+  fields: HighlightedField[];
+  table_groups: DynamicTableGroup[];
+  client: Client;
+}
+
 
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   FileText,
+  Users,
   FileQuestion,
   FolderOpen,
   Highlighter,
@@ -15,8 +16,8 @@ import type { UserProfile } from '../types';
 
 interface HeaderProps {
   user: UserProfile | null;
-  activeTab: 'workspace' | 'qa' | 'templates' | 'studio' | 'history' | 'wallet' | 'admin';
-  onSelectTab: (tab: 'workspace' | 'qa' | 'templates' | 'studio' | 'history' | 'wallet' | 'admin') => void;
+  activeTab: 'workspace' | 'clients' | 'qa' | 'templates' | 'studio' | 'history' | 'wallet' | 'admin';
+  onSelectTab: (tab: 'workspace' | 'clients' | 'qa' | 'templates' | 'studio' | 'history' | 'wallet' | 'admin') => void;
   onOpenHelpModal: () => void;
   onOpenBatchModal?: () => void;
   onOpenMetricsModal?: () => void;
@@ -85,6 +86,19 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <FileText className="w-3.5 h-3.5" />
             <span>Workspace</span>
+          </button>
+
+          <button
+            onClick={() => onSelectTab('clients')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+              activeTab === 'clients'
+                ? 'bg-slate-800 text-white'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+            }`}
+            title="Clients & Scrutiny Records"
+          >
+            <Users className="w-3.5 h-3.5 text-amber-400" />
+            <span>Clients</span>
           </button>
 
           <button
