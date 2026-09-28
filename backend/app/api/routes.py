@@ -16,7 +16,7 @@ from sqlalchemy import select
 from pydantic import BaseModel, Field
 
 from backend.app.db.database import get_db
-from backend.app.db.models import GenerationSession, DocumentHistoryItem, User, WalletTransaction, SystemPricingConfig
+from backend.app.db.models import GenerationSession, DocumentHistoryItem, User, WalletTransaction, SystemPricingConfig, TemplateLibraryItem
 from backend.app.core.auth import get_current_user_optional
 from backend.app.core.doc_processor import (
     detect_yellow_highlights,
@@ -58,6 +58,14 @@ from backend.app.core.deed_models import (
     generate_multi_paragraph_trace,
     format_certificate_of_title
 )
+from backend.app.core.qa_engine import (
+    TemplateQuestion,
+    QuestionAnswer,
+    extract_template_questions,
+    build_document_index,
+    generate_grounded_answer,
+    generate_qa_report
+)
 
 router = APIRouter(prefix="/api")
 
@@ -72,8 +80,10 @@ class TemplateInspectionResponse(BaseModel):
     template_filename: str
     fields_count: int
     table_groups_count: int
+    questions_count: int = 0
     fields: List[HighlightedField]
     table_groups: List[DynamicTableGroup]
+    questions: List[TemplateQuestion] = Field(default_factory=list)
 
 
 class SourceUploadResponse(BaseModel):
@@ -102,14 +112,28 @@ class ExtractionResponse(BaseModel):
     extracted_count: int
     conflict_count: int
     not_found_count: int
+    questions_count: int = 0
+    qa_answers: List[QuestionAnswer] = Field(default_factory=list)
+    questions: List[TemplateQuestion] = Field(default_factory=list)
 
 
 class ExportRequest(BaseModel):
     # Mapping of field_id -> string value (resolved or edited)
-    field_values: Dict[str, Optional[str]]
+    field_values: Dict[str, Optional[str]] = Field(default_factory=dict)
     table_group_records: Optional[Dict[str, List[Dict[str, Any]]]] = None
     clear_highlight: bool = True
     preferred_deed_model: Optional[str] = None
+    qa_answers: Optional[List[Dict[str, Any]]] = None
+    doc_custom_name: Optional[str] = None
+
+
+class RenameDocumentRequest(BaseModel):
+    filename: str
+
+
+class SaveAsTemplateRequest(BaseModel):
+    name: Optional[str] = None
+    bank_name: Optional[str] = "General"
 
 
 class ApplyDeedModelRequest(BaseModel):
@@ -191,6 +215,14 @@ async def upload_template(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to parse template file: {str(e)}")
 
+    questions = []
+    if safe_filename.lower().endswith(".docx"):
+        try:
+            questions = extract_template_questions(file_bytes, safe_filename)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Notice: Could not parse template questions ({str(e)})")
+
     stmt = select(GenerationSession).where(GenerationSession.id == session_id)
     res = await db.execute(stmt)
     session = res.scalar_one_or_none()
@@ -202,6 +234,7 @@ async def upload_template(
     session.template_bytes = file_bytes
     session.fields_json = json.dumps([f.model_dump() for f in fields])
     session.table_groups_json = json.dumps([tg.model_dump() for tg in table_groups])
+    session.questions_json = json.dumps([q.model_dump() for q in questions])
     session.status = "template_loaded"
 
     await db.commit()
@@ -211,8 +244,10 @@ async def upload_template(
         template_filename=file.filename,
         fields_count=len(fields),
         table_groups_count=len(table_groups),
+        questions_count=len(questions),
         fields=fields,
-        table_groups=table_groups
+        table_groups=table_groups,
+        questions=questions
     )
 
 
@@ -315,43 +350,63 @@ async def extract_field_values(
     raw_fields = json.loads(session.fields_json or "[]")
     raw_table_groups = json.loads(session.table_groups_json or "[]")
     raw_sources = json.loads(session.sources_json or "[]")
+    raw_questions = json.loads(session.questions_json or "[]")
 
-    if not raw_fields:
-        raise HTTPException(status_code=400, detail="No highlighted fields detected in template.")
+    if not raw_fields and not raw_questions:
+        raise HTTPException(status_code=400, detail="No highlighted fields or scrutiny questions detected in template.")
 
     fields = [HighlightedField(**f) for f in raw_fields]
     table_groups = [DynamicTableGroup(**tg) for tg in raw_table_groups]
     sources = [ExtractedSourceDocument(**s) for s in raw_sources]
+    questions = [TemplateQuestion(**q) for q in raw_questions]
 
     import os
     api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 
-    extraction_output = await extract_fields_with_ai(
-        fields=fields,
-        table_groups=table_groups,
-        source_docs=sources,
-        api_key=api_key,
-        model=payload.model or "free_ai_model",
-        preferred_deed_model=payload.preferred_deed_model
-    )
+    # 1. Run dynamic field & table extraction if template fields exist
+    final_fields = []
+    final_tables = []
+    if fields:
+        extraction_output = await extract_fields_with_ai(
+            fields=fields,
+            table_groups=table_groups,
+            source_docs=sources,
+            api_key=api_key,
+            model=payload.model or "free_ai_model",
+            preferred_deed_model=payload.preferred_deed_model
+        )
+        final_fields = extraction_output.fields
+        final_tables = extraction_output.table_groups
 
-    session.results_json = json.dumps([r.model_dump() for r in extraction_output.fields])
-    session.table_results_json = json.dumps([tg.model_dump() for tg in extraction_output.table_groups])
+    # 2. Run grounded Q&A on template scrutiny questions if questions exist
+    qa_answers = []
+    if questions and sources:
+        doc_index = build_document_index(sources)
+        for q in questions:
+            ans = generate_grounded_answer(q, doc_index)
+            qa_answers.append(ans)
+
+    session.results_json = json.dumps([r.model_dump() for r in final_fields])
+    session.table_results_json = json.dumps([tg.model_dump() for tg in final_tables])
+    session.qa_answers_json = json.dumps([a.model_dump() for a in qa_answers])
     session.status = "extracted"
     await db.commit()
 
-    not_found_count = sum(1 for r in extraction_output.fields if r.status == "not_found")
-    conflict_count = sum(1 for r in extraction_output.fields if r.status == "conflict")
-    extracted_count = sum(1 for r in extraction_output.fields if r.status == "extracted")
+    not_found_count = sum(1 for r in final_fields if r.status == "not_found")
+    conflict_count = sum(1 for r in final_fields if r.status == "conflict")
+    extracted_count = sum(1 for r in final_fields if r.status == "extracted")
 
     return ExtractionResponse(
         session_id=session_id,
-        results=extraction_output.fields,
-        table_groups=extraction_output.table_groups,
-        total_fields=len(extraction_output.fields),
+        results=final_fields,
+        table_groups=final_tables,
+        total_fields=len(final_fields),
         extracted_count=extracted_count,
         conflict_count=conflict_count,
-        not_found_count=not_found_count
+        not_found_count=not_found_count,
+        questions_count=len(questions),
+        qa_answers=qa_answers,
+        questions=questions
     )
 
 
@@ -506,6 +561,31 @@ async def export_final_document(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating final document: {str(e)}")
 
+    # 3.5. Inject grounded Q&A answers into final document if template has questions / answers
+    effective_qa_answers = []
+    if payload.qa_answers:
+        for a in payload.qa_answers:
+            if isinstance(a, dict):
+                effective_qa_answers.append(QuestionAnswer(**a))
+            elif isinstance(a, QuestionAnswer):
+                effective_qa_answers.append(a)
+    elif session.qa_answers_json:
+        try:
+            raw_qa = json.loads(session.qa_answers_json)
+            effective_qa_answers = [QuestionAnswer(**a) for a in raw_qa]
+        except Exception:
+            pass
+
+    if effective_qa_answers and (session.template_filename or "").lower().endswith(".docx"):
+        try:
+            final_bytes = generate_qa_report(final_bytes, effective_qa_answers)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Notice: Failed to inject Q&A answers into final document: {e}")
+
+    if payload.doc_custom_name and payload.doc_custom_name.strip():
+        session.doc_custom_name = payload.doc_custom_name.strip()
+
     # 4. Check and deduct wallet fee if authenticated user and fee enforcement is enabled
     deducted_fee = 0.0
     if current_user:
@@ -547,7 +627,7 @@ async def export_final_document(
         user_id=user_id,
         session_id=session.id,
         client_id=session.client_id,
-        template_filename=session.template_filename or "generated_document.docx",
+        template_filename=session.doc_custom_name or session.template_filename or "generated_document.docx",
         sources_summary_json=session.sources_json or "[]",
         field_values_json=json.dumps(payload.field_values),
         table_records_json=json.dumps(payload.table_group_records or {}),
@@ -583,7 +663,12 @@ async def download_final_document(
     if not session or not session.final_docx_bytes:
         raise HTTPException(status_code=404, detail="No generated document found for this session")
 
-    base_name = (session.template_filename or "document").rsplit(".", 1)[0]
+    custom_name = (session.doc_custom_name or "").strip()
+    if custom_name:
+        base_name = custom_name.rsplit(".", 1)[0]
+    else:
+        base_name = f"{(session.template_filename or 'document').rsplit('.', 1)[0]}_completed"
+
     final_bytes = session.final_docx_bytes
     requested_fmt = (format or "docx").lower().strip()
 
@@ -597,7 +682,7 @@ async def download_final_document(
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
-            headers={"Content-Disposition": f'attachment; filename="{base_name}_completed.pdf"'}
+            headers={"Content-Disposition": f'attachment; filename="{base_name}.pdf"'}
         )
 
     elif requested_fmt in ("txt", "text"):
@@ -606,19 +691,19 @@ async def download_final_document(
         return Response(
             content=txt_bytes,
             media_type="text/plain; charset=utf-8",
-            headers={"Content-Disposition": f'attachment; filename="{base_name}_completed.txt"'}
+            headers={"Content-Disposition": f'attachment; filename="{base_name}.txt"'}
         )
 
     else:
-        filename = session.template_filename or "generated_document.docx"
+        filename = session.doc_custom_name or session.template_filename or "generated_document.docx"
         if filename.lower().endswith(".pptx"):
-            clean_name = f"{base_name}_completed.pptx"
+            clean_name = f"{base_name}.pptx"
             media_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
         elif filename.lower().endswith(".pdf"):
-            clean_name = f"{base_name}_completed.pdf"
+            clean_name = f"{base_name}.pdf"
             media_type = "application/pdf"
         else:
-            clean_name = f"{base_name}_completed.docx"
+            clean_name = f"{base_name}.docx"
             media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
         return Response(
@@ -626,6 +711,63 @@ async def download_final_document(
             media_type=media_type,
             headers={"Content-Disposition": f'attachment; filename="{clean_name}"'}
         )
+
+
+@router.post("/sessions/{session_id}/rename")
+async def rename_session_document(
+    session_id: str,
+    payload: RenameDocumentRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(GenerationSession).where(GenerationSession.id == session_id)
+    res = await db.execute(stmt)
+    session = res.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    clean_name = payload.filename.strip()
+    if not clean_name:
+        raise HTTPException(status_code=400, detail="Filename cannot be empty")
+
+    session.doc_custom_name = clean_name
+    await db.commit()
+    return {"status": "success", "filename": clean_name}
+
+
+@router.post("/sessions/{session_id}/save-as-template")
+async def save_session_as_template(
+    session_id: str,
+    payload: Optional[SaveAsTemplateRequest] = None,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(GenerationSession).where(GenerationSession.id == session_id)
+    res = await db.execute(stmt)
+    session = res.scalar_one_or_none()
+    if not session or not session.template_bytes:
+        raise HTTPException(status_code=404, detail="Session or template not found")
+
+    template_name = (payload.name if payload and payload.name else None) or session.doc_custom_name or session.template_filename or "Saved Template.docx"
+    bank = (payload.bank_name if payload and payload.bank_name else "General").strip()
+
+    raw_fields = json.loads(session.fields_json or "[]")
+    raw_tables = json.loads(session.table_groups_json or "[]")
+
+    item_id = str(uuid.uuid4())
+    item = TemplateLibraryItem(
+        id=item_id,
+        user_id=current_user.id if current_user else None,
+        name=template_name,
+        bank_name=bank,
+        fields_count=len(raw_fields),
+        table_groups_count=len(raw_tables),
+        template_bytes=session.template_bytes,
+        fields_json=session.fields_json or "[]",
+        table_groups_json=session.table_groups_json or "[]"
+    )
+    db.add(item)
+    await db.commit()
+    return {"status": "success", "template_id": item_id, "name": template_name, "bank_name": bank}
 
 
 @router.post("/sessions/{session_id}/load-sample")

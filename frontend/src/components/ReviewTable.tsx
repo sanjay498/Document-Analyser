@@ -16,14 +16,21 @@ import {
   FileText,
   ChevronDown,
   ChevronUp,
+  FileQuestion,
+  Edit3,
+  BookmarkPlus,
+  CheckCheck,
+  BookOpen
 } from 'lucide-react';
-import { getDeedModels, applyDeedModelToSession } from '../services/api';
+import { getDeedModels, applyDeedModelToSession, renameSessionDocument, saveSessionAsTemplate } from '../services/api';
 import type {
   HighlightedField,
   FieldExtractionResult,
   DynamicTableGroup,
   DynamicTableGroupResult,
   DeedModelDef,
+  TemplateQuestion,
+  QuestionAnswer,
 } from '../types';
 import { LegalConflictIllustration } from './illustrations/LegalIllustrations';
 
@@ -40,7 +47,9 @@ interface ReviewTableProps {
     fieldValues: Record<string, string | null>,
     tableRecords: Record<string, Array<Record<string, any>>>,
     clearHighlight: boolean,
-    preferredDeedModel?: string
+    preferredDeedModel?: string,
+    qaAnswers?: QuestionAnswer[],
+    docCustomName?: string
   ) => void;
   onApplyDeedModel?: (modelId: string) => Promise<void> | void;
   onViewSource?: (
@@ -52,6 +61,9 @@ interface ReviewTableProps {
   ) => void;
   onStartNewScrutiny?: () => void;
   downloadUrl: string | null;
+  qaAnswers?: QuestionAnswer[];
+  questions?: TemplateQuestion[];
+  onSaveAsTemplate?: () => void;
 }
 
 export const ReviewTable: React.FC<ReviewTableProps> = ({
@@ -68,7 +80,79 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
   onViewSource,
   onStartNewScrutiny,
   downloadUrl,
+  qaAnswers = [],
+  questions: _questions = [],
+  onSaveAsTemplate,
 }) => {
+  // Store Q&A answers and unified tab state
+  const [localQaAnswers, setLocalQaAnswers] = useState<QuestionAnswer[]>(qaAnswers);
+  const [activeReviewTab, setActiveReviewTab] = useState<'fields' | 'qa'>(
+    results.length > 0 ? 'fields' : 'qa'
+  );
+  const [customDocName, setCustomDocName] = useState<string>(
+    templateFilename ? templateFilename.replace(/\.[^/.]+$/, '') + '_completed.docx' : 'Legal_Opinion.docx'
+  );
+  const [isEditingDocName, setIsEditingDocName] = useState<boolean>(false);
+  const [isSavingTemplate, setIsSavingTemplate] = useState<boolean>(false);
+  const [templateSavedMsg, setTemplateSavedMsg] = useState<string | null>(null);
+  const [qaSearchQuery, setQaSearchQuery] = useState<string>('');
+  const [qaFilter, setQaFilter] = useState<'all' | 'complied' | 'conflicts' | 'missing'>('all');
+
+  useEffect(() => {
+    if (qaAnswers && qaAnswers.length > 0) {
+      setLocalQaAnswers(qaAnswers);
+    }
+  }, [qaAnswers]);
+
+  useEffect(() => {
+    if (templateFilename) {
+      setCustomDocName(templateFilename.replace(/\.[^/.]+$/, '') + '_completed.docx');
+    }
+  }, [templateFilename]);
+  const handleUpdateQaAnswer = (questionId: string, answer: string) => {
+    setLocalQaAnswers((prev) =>
+      prev.map((a) => (a.question_id === questionId ? { ...a, answer, status: 'user_edited' } : a))
+    );
+  };
+
+  const handleUpdateQaCompliance = (questionId: string, compliance_status: string) => {
+    setLocalQaAnswers((prev) =>
+      prev.map((a) => (a.question_id === questionId ? { ...a, compliance_status } : a))
+    );
+  };
+
+  const handleApproveAllQa = () => {
+    setLocalQaAnswers((prev) =>
+      prev.map((a) => ({ ...a, compliance_status: 'Complied' }))
+    );
+  };
+
+  const handleSaveDocName = async () => {
+    setIsEditingDocName(false);
+    if (sessionId && customDocName.trim()) {
+      try {
+        await renameSessionDocument(sessionId, customDocName.trim());
+      } catch (err) {
+        console.error('Failed to rename document:', err);
+      }
+    }
+  };
+
+  const handleSaveAsTemplateClick = async () => {
+    if (!sessionId) return;
+    setIsSavingTemplate(true);
+    try {
+      const res = await saveSessionAsTemplate(sessionId, customDocName);
+      setTemplateSavedMsg(`Saved "${res.name}" to Template Library!`);
+      setTimeout(() => setTemplateSavedMsg(null), 4000);
+      if (onSaveAsTemplate) onSaveAsTemplate();
+    } catch (err: any) {
+      console.error('Failed to save template:', err);
+    } finally {
+      setIsSavingTemplate(false);
+    }
+  };
+
   // Store user-resolved field values: field_id -> string
   const [resolvedValues, setResolvedValues] = useState<Record<string, string>>({});
   // Store fields marked explicitly as "leave blank / keep original"
@@ -352,7 +436,7 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
       }
     });
 
-    onExport(payloadFields, dynamicTables, clearHighlight, selectedDeedModel);
+    onExport(payloadFields, dynamicTables, clearHighlight, selectedDeedModel, localQaAnswers, customDocName);
   };
 
   // Filtering
@@ -374,6 +458,23 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
     return true;
   });
 
+  const filteredQaList = useMemo(() => {
+    return localQaAnswers.filter((a) => {
+      if (qaFilter === 'complied' && a.compliance_status !== 'Complied') return false;
+      if (qaFilter === 'conflicts' && !(a.compliance_status === 'Observation' || a.status === 'conflict_detected' || Boolean(a.conflict))) return false;
+      if (qaFilter === 'missing' && a.status !== 'not_found') return false;
+
+      if (qaSearchQuery.trim()) {
+        const q = qaSearchQuery.toLowerCase();
+        const matchQ = (a.question_text || '').toLowerCase().includes(q);
+        const matchA = (a.answer || '').toLowerCase().includes(q);
+        const matchS = (a.section || '').toLowerCase().includes(q);
+        return matchQ || matchA || matchS;
+      }
+      return true;
+    });
+  }, [localQaAnswers, qaFilter, qaSearchQuery]);
+
   const activeDeedModel = deedModels.find((m) => m.id === selectedDeedModel) || deedModels[0];
 
   return (
@@ -381,20 +482,55 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
       {/* Document Summary & Stats Bar */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-2 border-b border-slate-800">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5 flex-wrap">
             <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-emerald-500/10 text-emerald-400 font-bold text-xs">
               04
             </span>
-            <h2 className="text-sm font-bold text-white tracking-tight">Review & Audit Document Fields</h2>
-            {templateFilename && (
-              <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-900 text-slate-300 border border-slate-800 truncate max-w-xs">
-                {templateFilename}
-              </span>
+            <h2 className="text-sm font-bold text-white tracking-tight">Review & Audit Document</h2>
+            {/* Inline Editable Document Name */}
+            {isEditingDocName ? (
+              <div className="inline-flex items-center gap-1.5 bg-slate-900 border border-amber-400 rounded-lg px-2 py-0.5">
+                <input
+                  type="text"
+                  value={customDocName}
+                  onChange={(e) => setCustomDocName(e.target.value)}
+                  onBlur={handleSaveDocName}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveDocName();
+                    if (e.key === 'Escape') setIsEditingDocName(false);
+                  }}
+                  className="bg-transparent text-xs text-white font-medium focus:outline-none w-48"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveDocName}
+                  className="text-emerald-400 hover:text-emerald-300 p-0.5 cursor-pointer"
+                >
+                  <Check className="w-3 h-3" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsEditingDocName(true)}
+                className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 hover:border-slate-700 cursor-pointer transition-colors max-w-xs"
+                title="Click to rename final document filename"
+              >
+                <span className="truncate">{customDocName}</span>
+                <Edit3 className="w-3 h-3 text-slate-500 group-hover:text-amber-400 shrink-0" />
+              </button>
             )}
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            Resolve conflicts, verify source page citations, and finalize dynamic table rows before document generation.
+            Resolve conflicts, verify source citations, and finalize scrutiny answers before document export.
           </p>
+          {templateSavedMsg && (
+            <div className="mt-2 text-xs text-emerald-400 font-medium flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 rounded-lg animate-fade-in">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>{templateSavedMsg}</span>
+            </div>
+          )}
         </div>
 
         {/* Stats Pills & Reset Button */}
@@ -418,6 +554,16 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
               <span className="font-semibold">{notFoundCount}</span> Missing
             </div>
           )}
+          <button
+            type="button"
+            onClick={handleSaveAsTemplateClick}
+            disabled={isSavingTemplate}
+            className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-amber-500/40 text-xs text-slate-300 hover:text-amber-300 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            title="Save this document structure to your reusable Template Library"
+          >
+            <BookmarkPlus className="w-3.5 h-3.5 text-amber-400" />
+            <span>{isSavingTemplate ? 'Saving...' : 'Save as Template'}</span>
+          </button>
           {onStartNewScrutiny && (
             <button
               type="button"
@@ -431,6 +577,45 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
         </div>
       </div>
 
+      {/* Unified Tab Switcher if both fields & scrutiny questions exist */}
+      {(results.length > 0 && localQaAnswers.length > 0) && (
+        <div className="flex items-center gap-2 border-b border-slate-800/80 pb-2">
+          <button
+            type="button"
+            onClick={() => setActiveReviewTab('fields')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              activeReviewTab === 'fields'
+                ? 'bg-amber-400 text-slate-950 font-bold shadow-md shadow-amber-400/10'
+                : 'text-slate-400 hover:text-slate-200 bg-slate-900/50 hover:bg-slate-900 border border-slate-800'
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Document Fields & Narrative</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeReviewTab === 'fields' ? 'bg-slate-950/20 text-slate-900 font-extrabold' : 'bg-slate-800 text-slate-300'}`}>
+              {results.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveReviewTab('qa')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              activeReviewTab === 'qa'
+                ? 'bg-amber-400 text-slate-950 font-bold shadow-md shadow-amber-400/10'
+                : 'text-slate-400 hover:text-slate-200 bg-slate-900/50 hover:bg-slate-900 border border-slate-800'
+            }`}
+          >
+            <FileQuestion className="w-3.5 h-3.5" />
+            <span>Scrutiny Q&A & Checklist</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeReviewTab === 'qa' ? 'bg-slate-950/20 text-slate-900 font-extrabold' : 'bg-slate-800 text-slate-300'}`}>
+              {localQaAnswers.length}
+            </span>
+          </button>
+        </div>
+      )}
+
+      {activeReviewTab === 'fields' ? (
+        <>
       {/* Deed Model Selection & Recital Formatter Bar */}
       <div className="rounded-xl bg-[#070a13] border border-slate-800 p-4 space-y-3">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
@@ -1086,6 +1271,176 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
               </div>
             );
           })}
+        </div>
+      )}
+
+        </>
+      ) : (
+        /* ========================================================
+            UNIFIED SCRUTINY Q&A & CHECKLIST VIEW
+           ======================================================== */
+        <div className="space-y-4">
+          {/* Q&A Filter & Actions Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-[#070a13] border border-slate-800 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setQaFilter('all')}
+                className={`px-2.5 py-1 rounded-lg font-medium transition-colors cursor-pointer ${
+                  qaFilter === 'all'
+                    ? 'bg-slate-800 text-white border border-slate-700'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                All ({localQaAnswers.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setQaFilter('complied')}
+                className={`px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
+                  qaFilter === 'complied'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                    : 'text-emerald-400/80 hover:text-emerald-300'
+                }`}
+              >
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                Complied ({localQaAnswers.filter((a) => a.compliance_status === 'Complied').length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setQaFilter('conflicts')}
+                className={`px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
+                  qaFilter === 'conflicts'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                    : 'text-amber-400/80 hover:text-amber-300'
+                }`}
+              >
+                <ShieldAlert className="w-3 h-3 text-amber-400" />
+                Observations ({localQaAnswers.filter((a) => a.compliance_status === 'Observation' || a.status === 'conflict_detected' || Boolean(a.conflict)).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setQaFilter('missing')}
+                className={`px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
+                  qaFilter === 'missing'
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                    : 'text-rose-400/80 hover:text-rose-300'
+                }`}
+              >
+                <AlertTriangle className="w-3 h-3 text-rose-400" />
+                Missing ({localQaAnswers.filter((a) => a.status === 'not_found').length})
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="Search scrutiny questions..."
+                  value={qaSearchQuery}
+                  onChange={(e) => setQaSearchQuery(e.target.value)}
+                  className="pl-8 pr-3 py-1.5 text-xs bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-amber-400/80 w-56"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleApproveAllQa}
+                className="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                title="Mark all answers as Complied"
+              >
+                <CheckCheck className="w-3.5 h-3.5" />
+                <span>Approve All Answers</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Q&A Cards List */}
+          {filteredQaList.length === 0 ? (
+            <div className="p-8 text-center text-xs text-slate-400 bg-[#070a13] border border-slate-800 rounded-xl">
+              No scrutiny questions match the current filter or search query.
+            </div>
+          ) : (
+            <div className="space-y-3.5">
+              {filteredQaList.map((item, idx) => (
+                <div
+                  key={item.question_id || idx}
+                  className="rounded-xl bg-[#070a13] border border-slate-800 p-4 space-y-3 hover:border-slate-700 transition-colors shadow-sm"
+                >
+                  {/* Question Meta */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                        {item.section || 'General Scrutiny'}
+                      </span>
+                      <span className="text-xs font-bold text-white">
+                        {item.question_text}
+                      </span>
+                    </div>
+                    {/* Compliance Selector Pill */}
+                    <select
+                      value={item.compliance_status || 'Complied'}
+                      onChange={(e) => handleUpdateQaCompliance(item.question_id, e.target.value)}
+                      className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border focus:outline-none cursor-pointer ${
+                        item.compliance_status === 'Complied'
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                          : item.compliance_status === 'Observation' || item.status === 'conflict_detected' || Boolean(item.conflict)
+                          ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                          : item.status === 'not_found'
+                          ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                          : 'bg-slate-800 text-slate-300 border-slate-700'
+                      }`}
+                    >
+                      <option value="Complied">✓ Complied</option>
+                      <option value="Observation">⚠️ Observation</option>
+                      <option value="Not Applicable">Not Applicable</option>
+                      <option value="Pending">Pending Verification</option>
+                    </select>
+                  </div>
+
+                  {/* Answer Textarea */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-400">Grounded Finding / Answer:</label>
+                    <textarea
+                      value={item.answer}
+                      onChange={(e) => handleUpdateQaAnswer(item.question_id, e.target.value)}
+                      rows={2}
+                      className="w-full text-xs bg-slate-900/90 border border-slate-700/80 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-amber-400/80 leading-relaxed font-sans"
+                      placeholder="Enter legal scrutiny finding or answer..."
+                    />
+                  </div>
+
+                  {/* Evidence Citations */}
+                  {item.evidence && item.evidence.length > 0 && (
+                    <div className="rounded-lg bg-slate-950/70 border border-slate-800/80 p-2.5 text-xs space-y-1.5">
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <BookOpen className="w-3 h-3 text-sky-400" />
+                        Supporting Deed Evidence Citations:
+                      </span>
+                      <div className="space-y-1.5">
+                        {item.evidence.map((ev, evIdx) => (
+                          <div key={evIdx} className="flex items-start justify-between gap-3 text-[11px] text-slate-300">
+                            <p className="italic text-slate-400 font-mono text-[10.5px] leading-relaxed">
+                              "{ev.snippet}"
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => onViewSource && onViewSource(ev.document_name, ev.page_number, ev.snippet, item.question_text, item.answer)}
+                              className="shrink-0 flex items-center gap-1 text-[10px] text-sky-400 hover:text-sky-300 hover:underline cursor-pointer"
+                              title="Inspect original source document"
+                            >
+                              <Eye className="w-3 h-3" />
+                              <span>{ev.document_name} (p.{ev.page_number})</span>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

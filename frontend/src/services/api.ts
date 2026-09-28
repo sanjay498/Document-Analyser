@@ -236,8 +236,10 @@ export async function uploadTemplate(sessionId: string, file: File): Promise<{
   template_filename: string;
   fields_count: number;
   table_groups_count: number;
+  questions_count?: number;
   fields: HighlightedField[];
   table_groups: DynamicTableGroup[];
+  questions?: TemplateQuestion[];
 }> {
   const formData = new FormData();
   formData.append('file', file);
@@ -340,6 +342,9 @@ export async function extractFields(
   extracted_count: number;
   conflict_count: number;
   not_found_count: number;
+  questions_count?: number;
+  qa_answers?: QuestionAnswer[];
+  questions?: TemplateQuestion[];
 }> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -366,7 +371,9 @@ export async function exportDocument(
   fieldValues: Record<string, string | null>,
   tableGroupRecords?: Record<string, Array<Record<string, any>>>,
   clearHighlight: boolean = true,
-  preferredDeedModel?: string
+  preferredDeedModel?: string,
+  qaAnswers?: QuestionAnswer[],
+  docCustomName?: string
 ): Promise<{
   status: string;
   message: string;
@@ -384,11 +391,52 @@ export async function exportDocument(
       table_group_records: tableGroupRecords,
       clear_highlight: clearHighlight,
       preferred_deed_model: preferredDeedModel || undefined,
+      qa_answers: qaAnswers,
+      doc_custom_name: docCustomName,
     }),
   });
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({ detail: 'Failed to export document' }));
     throw new Error(errorData.detail || 'Failed to export document');
+  }
+  return res.json();
+}
+
+export async function renameSessionDocument(
+  sessionId: string,
+  filename: string
+): Promise<{ status: string; filename: string }> {
+  const res = await fetch(`${API_BASE}/sessions/${sessionId}/rename`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({ filename }),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({ detail: 'Failed to rename document' }));
+    throw new Error(errorData.detail || 'Failed to rename document');
+  }
+  return res.json();
+}
+
+export async function saveSessionAsTemplate(
+  sessionId: string,
+  name?: string,
+  bankName: string = 'General'
+): Promise<{ status: string; template_id: string; name: string; bank_name: string }> {
+  const res = await fetch(`${API_BASE}/sessions/${sessionId}/save-as-template`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({ name, bank_name: bankName }),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({ detail: 'Failed to save template' }));
+    throw new Error(errorData.detail || 'Failed to save template');
   }
   return res.json();
 }

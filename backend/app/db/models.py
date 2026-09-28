@@ -322,14 +322,17 @@ class GenerationSession(Base):
     template_id = Column(String(64), ForeignKey("template_library.id", ondelete="SET NULL"), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), default=utc_now)
     template_filename = Column(String(255), nullable=True)
+    doc_custom_name = Column(String(255), nullable=True)
     template_bytes = Column(LargeBinary, nullable=True)
     status = Column(String(50), default="created")
     
     fields_json = Column(Text, nullable=True)
     table_groups_json = Column(Text, nullable=True)
+    questions_json = Column(Text, nullable=True)
     sources_json = Column(Text, nullable=True)
     results_json = Column(Text, nullable=True)
     table_results_json = Column(Text, nullable=True)
+    qa_answers_json = Column(Text, nullable=True)
     final_docx_bytes = Column(LargeBinary, nullable=True)
 
     client = relationship("Client", back_populates="sessions")

@@ -1060,16 +1060,20 @@ def format_certificate_of_title(text: str, ctx: Optional[Dict[str, Any]] = None)
             return holder or t
 
     # 2. Deduplicate / strip redundant trace filler sentences if injected into certificate
-    filler_pat = r'The\s+title\s+holder\s+[^.\n\r]+?\s+holds?\s+absolute,\s+clear,?\s+and\s+marketable\s+title\s+over\s+the\s+properties\s+and\s+is\s+legally\s+competent\s+to\s+create\s+mortgage\s+security\.?\s*'
-    if re.search(r'certify\s+that', t, flags=re.IGNORECASE) and re.search(filler_pat, t, flags=re.IGNORECASE):
-        t = re.sub(filler_pat, '', t, flags=re.IGNORECASE).strip()
+    filler_sentence_pat = r'The\s+title\s+holder\s+[\s\S]+?\s+holds?\s+absolute,\s+clear,?\s+and\s+marketable\s+title\s+over\s+the\s+properties\s+and\s+is\s+legally\s+competent\s+to\s+create\s+mortgage\s+security\.?\s*(?:by\s+way\s+of\s+equitable\s+mortgage\.?\s*)?'
+    
+    if re.search(r'certify\s+that', t, flags=re.IGNORECASE) or "certificate of title" in t.lower() or "fee receipts enclosed" in t.lower():
+        # In certificate paragraphs, remove the redundant trace filler sentence completely
+        t = re.sub(filler_sentence_pat, '', t, flags=re.IGNORECASE).strip()
     else:
-        matches = list(re.finditer(filler_pat, t, flags=re.IGNORECASE))
+        # In standalone conclusion or mortgage clauses, deduplicate if repeated multiple times
+        matches = list(re.finditer(filler_sentence_pat, t, flags=re.IGNORECASE))
         if len(matches) > 1:
-            first_span = matches[0].span()
-            first_match = t[first_span[0]:first_span[1]]
-            t = re.sub(filler_pat, '', t, flags=re.IGNORECASE).strip()
-            t = first_match.strip() + (" " + t if t else "")
+            first_match = matches[0].group(0).strip()
+            t = re.sub(filler_sentence_pat, '', t, flags=re.IGNORECASE).strip()
+            # Strip leftover orphan "by way of equitable mortgage." fragments
+            t = re.sub(r'^(?:by\s+way\s+of\s+equitable\s+mortgage\.?\s*)+', '', t, flags=re.IGNORECASE).strip()
+            t = first_match + (" " + t if t else "")
 
     # 3. Regex replace "I certify that [any party name] has an absolute..."
     # Use [^\n\r]+? so names with periods (M.Anandan, K.MUTHULAKSHMI) match smoothly
@@ -1125,7 +1129,7 @@ def format_certificate_of_title(text: str, ctx: Optional[Dict[str, Any]] = None)
             r'Kalimuthu\s*Chettiyar',
             r'C\.?\s*Ganapathy\s*(?:,\s*S/o\s*Chinnan)?',
         ]:
-            if re.search(dummy_pattern, t, flags=re.IGNORECASE) and holder.lower() not in t.lower():
+            if re.search(dummy_pattern, t, flags=re.IGNORECASE):
                 t = re.sub(dummy_pattern, holder, t, flags=re.IGNORECASE)
 
     # 5. Location replacement if present in certificate

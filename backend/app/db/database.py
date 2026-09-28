@@ -105,6 +105,9 @@ async def init_db():
                 "ALTER TABLE template_library ADD COLUMN bank_name VARCHAR(128) DEFAULT 'General'",
                 "ALTER TABLE generation_sessions ADD COLUMN client_id VARCHAR(64)",
                 "ALTER TABLE generation_sessions ADD COLUMN template_id VARCHAR(64)",
+                "ALTER TABLE generation_sessions ADD COLUMN doc_custom_name VARCHAR(255)",
+                "ALTER TABLE generation_sessions ADD COLUMN questions_json TEXT",
+                "ALTER TABLE generation_sessions ADD COLUMN qa_answers_json TEXT",
                 "ALTER TABLE template_qa_sessions ADD COLUMN client_id VARCHAR(64)",
                 "ALTER TABLE document_history ADD COLUMN client_id VARCHAR(64)",
             ]
