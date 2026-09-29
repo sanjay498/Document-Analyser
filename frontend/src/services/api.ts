@@ -40,26 +40,65 @@ import type {
   StartScrutinyResponse,
 } from '../types';
 
-const BACKEND_BASE = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL)
-  ? (import.meta.env.VITE_API_URL as string).replace(/\/$/, '')
-  : '';
-const API_BASE = `${BACKEND_BASE}/api`;
-
-export async function getHealthStatus(): Promise<Record<string, any>> {
-  const res = await fetch(`${API_BASE}/health`);
-  if (!res.ok) {
-    // fallback to /health
-    const fallback = await fetch(`${BACKEND_BASE || ''}/health`);
-    if (!fallback.ok) throw new Error('Health check failed');
-    return fallback.json();
+let cachedBackendBase = (() => {
+  try {
+    const custom = localStorage.getItem('lex_backend_url');
+    if (custom && custom.trim()) return custom.trim().replace(/\/$/, '');
+  } catch {}
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) {
+    return (import.meta.env.VITE_API_URL as string).replace(/\/$/, '');
   }
-  return res.json();
+  return '';
+})();
+
+export let API_BASE = cachedBackendBase ? `${cachedBackendBase}/api` : '/api';
+
+export function getBackendBaseUrl(): string {
+  return cachedBackendBase;
+}
+
+export function setBackendBaseUrl(url: string): void {
+  const clean = (url || '').trim().replace(/\/$/, '');
+  cachedBackendBase = clean;
+  API_BASE = clean ? `${clean}/api` : '/api';
+  try {
+    if (!clean) {
+      localStorage.removeItem('lex_backend_url');
+    } else {
+      localStorage.setItem('lex_backend_url', clean);
+    }
+  } catch {}
+}
+
+export async function getHealthStatus(testUrl?: string): Promise<Record<string, any>> {
+  const base = testUrl !== undefined ? testUrl.trim().replace(/\/$/, '') : cachedBackendBase;
+  const apiBase = base ? `${base}/api` : '/api';
+
+  try {
+    const res = await fetch(`${apiBase}/health`, { signal: AbortSignal.timeout(8000) });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (e) {
+    // continue to fallback
+  }
+
+  if (base) {
+    try {
+      const fallback = await fetch(`${base}/health`, { signal: AbortSignal.timeout(8000) });
+      if (fallback.ok) return await fallback.json();
+    } catch (e) {
+      // failed
+    }
+  }
+
+  throw new Error('Health check failed: Unable to reach backend server');
 }
 
 export async function getSystemMetrics(): Promise<SystemMetrics> {
   const res = await fetch(`${API_BASE}/metrics`);
   if (!res.ok) {
-    const fallback = await fetch(`${BACKEND_BASE || ''}/metrics`);
+    const fallback = await fetch(`${cachedBackendBase || ''}/metrics`);
     if (!fallback.ok) throw new Error('Failed to fetch system metrics');
     return fallback.json();
   }

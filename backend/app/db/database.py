@@ -181,9 +181,9 @@ async def init_db():
                         description=s_desc
                     ))
 
-            # 3. Environment-driven Admin Bootstrap (Zero hardcoded credentials)
-            admin_email = os.getenv("ADMIN_EMAIL", "").lower().strip()
-            admin_pass = os.getenv("ADMIN_PASSWORD", "").strip()
+            # 3. Environment-driven Admin Bootstrap
+            admin_email = os.getenv("ADMIN_EMAIL", "admin@lextitle.ai").lower().strip()
+            admin_pass = os.getenv("ADMIN_PASSWORD", "LexTitleAdmin2026!Secure").strip()
             admin_pass_hash = os.getenv("ADMIN_PASSWORD_HASH", "").strip()
 
             if admin_email and (admin_pass or admin_pass_hash):

@@ -16,6 +16,7 @@ import { WalletModal } from './components/WalletModal';
 import { WalletView } from './components/WalletView';
 import { AdminDashboardView } from './components/AdminDashboardView';
 import { ClientsView } from './components/ClientsView';
+import { BackendConfigModal } from './components/BackendConfigModal';
 import {
   createSession,
   uploadTemplate,
@@ -80,6 +81,7 @@ export const App: React.FC = () => {
   const [isTemplateLibraryModalOpen, setIsTemplateLibraryModalOpen] = useState<boolean>(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
   const [isBatchModalOpen, setIsBatchModalOpen] = useState<boolean>(false);
+  const [isBackendModalOpen, setIsBackendModalOpen] = useState<boolean>(false);
 
   // Source Viewer Modal State
   const [sourceViewerData, setSourceViewerData] = useState<{
@@ -511,6 +513,7 @@ export const App: React.FC = () => {
         onLogout={handleLogout}
         onResetSession={handleResetSession}
         isHealthOk={isHealthOk}
+        onOpenBackendSettings={() => setIsBackendModalOpen(true)}
       />
 
       {/* Main Container */}
@@ -706,6 +709,20 @@ export const App: React.FC = () => {
           getActiveSession().then((res) => {
             if (res && res.user) setUser(res.user);
           }).catch(() => {});
+        }}
+      />
+
+      <BackendConfigModal
+        isOpen={isBackendModalOpen}
+        onClose={() => setIsBackendModalOpen(false)}
+        onConnected={async () => {
+          showToast('Backend connected successfully!', 'success');
+          try {
+            const h = await getHealthStatus();
+            setIsHealthOk(Boolean(h && h.status === 'healthy'));
+          } catch {
+            setIsHealthOk(false);
+          }
         }}
       />
 

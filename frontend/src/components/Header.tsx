@@ -25,6 +25,7 @@ interface HeaderProps {
   onLogout?: () => void;
   onResetSession: () => void;
   isHealthOk?: boolean;
+  onOpenBackendSettings?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -36,6 +37,7 @@ export const Header: React.FC<HeaderProps> = ({
   onSwitchToUser,
   onResetSession,
   isHealthOk = true,
+  onOpenBackendSettings,
 }) => {
   const isUserAdmin = user?.role === 'ADMIN' || user?.is_admin === true;
   const displayBalance = user?.wallet_balance ?? 0.0;
@@ -61,16 +63,18 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </button>
 
-          {/* Minimal Live Status Dot */}
-          <div
-            className="hidden sm:inline-flex items-center gap-1.5 pl-3 border-l border-slate-800 text-[11px] text-slate-400"
-            title={isHealthOk ? 'Backend API connected and responsive' : 'Backend API connection offline'}
+          {/* Status Dot & Backend Connection Settings trigger */}
+          <button
+            type="button"
+            onClick={onOpenBackendSettings}
+            className="hidden sm:inline-flex items-center gap-1.5 pl-3 border-l border-slate-800 text-[11px] text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+            title={isHealthOk ? 'Backend connected. Click to view/configure API URL' : 'Backend offline. Click to connect your Render Web Service'}
           >
-            <span className={`w-1.5 h-1.5 rounded-full ${isHealthOk ? 'bg-emerald-400' : 'bg-rose-500'}`} />
-            <span className="text-[10px] text-slate-400 font-medium">
-              {isHealthOk ? 'System Live' : 'Offline'}
+            <span className={`w-2 h-2 rounded-full ${isHealthOk ? 'bg-emerald-400' : 'bg-rose-500 animate-pulse'}`} />
+            <span className={`text-[10px] font-medium ${isHealthOk ? 'text-slate-400' : 'text-rose-400 font-semibold underline'}`}>
+              {isHealthOk ? 'System Live' : 'Offline (Click to Connect)'}
             </span>
-          </div>
+          </button>
         </div>
 
         {/* Center Primary Navigation */}
@@ -153,20 +157,19 @@ export const Header: React.FC<HeaderProps> = ({
             </span>
           </button>
 
-          {/* Admin Panel Tab - ONLY visible when authenticated as administrator */}
-          {isUserAdmin && (
-            <button
-              onClick={() => onSelectTab('admin')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-                activeTab === 'admin'
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                  : 'text-amber-400/80 hover:text-amber-300 hover:bg-slate-800/40'
-              }`}
-            >
-              <Shield className="w-3.5 h-3.5" />
-              <span>Admin</span>
-            </button>
-          )}
+          {/* Admin Panel Tab - Always accessible; prompts for admin password if not elevated */}
+          <button
+            onClick={() => onSelectTab('admin')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+              activeTab === 'admin'
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                : 'text-amber-400/80 hover:text-amber-300 hover:bg-slate-800/40'
+            }`}
+            title="Administrator Management Portal (/management)"
+          >
+            <Shield className="w-3.5 h-3.5" />
+            <span>Admin</span>
+          </button>
         </nav>
 
         {/* Right Action Cluster */}
