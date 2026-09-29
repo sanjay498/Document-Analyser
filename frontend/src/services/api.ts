@@ -40,6 +40,8 @@ import type {
   StartScrutinyResponse,
 } from '../types';
 
+const DEFAULT_PRODUCTION_BACKEND = 'https://document-analyser-1-momv.onrender.com';
+
 let cachedBackendBase = (() => {
   try {
     const custom = localStorage.getItem('lex_backend_url');
@@ -47,6 +49,9 @@ let cachedBackendBase = (() => {
   } catch {}
   if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) {
     return (import.meta.env.VITE_API_URL as string).replace(/\/$/, '');
+  }
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return DEFAULT_PRODUCTION_BACKEND;
   }
   return '';
 })();
