@@ -1279,17 +1279,29 @@ export async function getActiveSession(): Promise<AuthResponse> {
 
 export async function switchToAdmin(password: string): Promise<AuthResponse> {
   const currentToken = localStorage.getItem('auth_token');
-  const res = await fetch(`${API_BASE}/auth/switch-to-admin`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeaders(),
-    },
-    body: JSON.stringify({ password }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/auth/switch-to-admin`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({ password }),
+    });
+  } catch (netErr: any) {
+    throw new Error('Cannot connect to backend server. Please verify your Render Web Service is running and connected.');
+  }
+
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Administrative verification failed' }));
-    throw new Error(err.detail || 'Incorrect administrator password');
+    let detail = '';
+    try {
+      const err = await res.json();
+      detail = err.detail || err.message;
+    } catch {
+      throw new Error('Backend server is offline or returned an invalid response. Please verify your Render backend URL.');
+    }
+    throw new Error(detail || 'Incorrect administrator password. Please verify the password set in Render.');
   }
   const data: AuthResponse = await res.json();
   if (data.token) {

@@ -27,8 +27,10 @@ import {
   Lock,
   Key,
   ShieldAlert,
-  ChevronRight
+  ChevronRight,
+  Server
 } from 'lucide-react';
+import { BackendConfigModal } from './BackendConfigModal';
 
 import type {
   UserProfile,
@@ -154,6 +156,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   const [adminPassword, setAdminPassword] = useState('');
   const [isAdminLoggingIn, setIsAdminLoggingIn] = useState(false);
   const [adminLoginError, setAdminLoginError] = useState<string | null>(null);
+  const [isBackendModalOpen, setIsBackendModalOpen] = useState(false);
 
   // Load all admin data
   const loadData = async () => {
@@ -499,9 +502,18 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
 
           {/* Error Message */}
           {adminLoginError && (
-            <div className="p-3.5 bg-rose-950/60 border border-rose-500/40 rounded-xl text-xs text-rose-300 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{adminLoginError}</span>
+            <div className="p-3.5 bg-rose-950/60 border border-rose-500/40 rounded-xl text-xs text-rose-300 space-y-2">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                <span className="font-medium">{adminLoginError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBackendModalOpen(true)}
+                className="w-full py-1.5 px-3 bg-rose-900/60 hover:bg-rose-800/80 border border-rose-500/40 rounded-lg text-rose-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Server className="w-3.5 h-3.5" /> Configure / Connect Backend URL
+              </button>
             </div>
           )}
 
@@ -542,7 +554,14 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
             </button>
           </form>
 
-          <div className="text-center pt-2 border-t border-slate-800/80">
+          <div className="flex flex-col items-center gap-2 pt-3 border-t border-slate-800/80">
+            <button
+              type="button"
+              onClick={() => setIsBackendModalOpen(true)}
+              className="text-xs text-amber-400 hover:text-amber-300 inline-flex items-center gap-1.5 transition-colors cursor-pointer font-medium"
+            >
+              <Server className="w-3.5 h-3.5" /> Backend offline? Connect Render Backend
+            </button>
             <button
               type="button"
               onClick={onNavigateToWorkspace}
@@ -552,6 +571,15 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
             </button>
           </div>
         </div>
+
+        <BackendConfigModal
+          isOpen={isBackendModalOpen}
+          onClose={() => setIsBackendModalOpen(false)}
+          onConnected={() => {
+            setIsBackendModalOpen(false);
+            setAdminLoginError(null);
+          }}
+        />
       </div>
     );
   }
