@@ -17,7 +17,10 @@ import {
   Building2,
   Folder,
   FolderPlus,
-  Layers
+  Layers,
+  LayoutList,
+  LayoutGrid,
+  Tag
 } from 'lucide-react';
 import {
   listTemplates,
@@ -51,8 +54,23 @@ export const TemplateManagerView: React.FC<TemplateManagerViewProps> = ({
   const [templates, setTemplates] = useState<TemplateSummary[]>([]);
   const [bankFolders, setBankFolders] = useState<string[]>([]);
   const [selectedBank, setSelectedBank] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [viewLayout, setViewLayout] = useState<'horizontal_rows' | 'grid'>('horizontal_rows');
   const [isLoading, setIsLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState<string>(() => {
+    try {
+      return localStorage.getItem('lex_manager_template_search') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    try {
+      localStorage.setItem('lex_manager_template_search', val);
+    } catch {}
+  };
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [inspectTemplate, setInspectTemplate] = useState<{
@@ -120,15 +138,35 @@ export const TemplateManagerView: React.FC<TemplateManagerViewProps> = ({
     return counts;
   }, [allBanks, templates]);
 
+  const DOCUMENT_CATEGORIES = [
+    { id: 'all', label: 'All Types' },
+    { id: 'opinion', label: 'Title Opinion & Scrutiny', keywords: ['opinion', 'scrutiny', 'search', 'report', 'clearance', 'title'] },
+    { id: 'agri', label: 'Agricultural Land', keywords: ['agri', 'agricultural', '7/12', 'farm', 'cultivation', 'land'] },
+    { id: 'housing', label: 'Housing & Mortgage', keywords: ['housing', 'mortgage', 'loan', 'residential', 'flat', 'apartment'] },
+    { id: 'commercial', label: 'Commercial & Lease', keywords: ['commercial', 'industrial', 'lease', 'office', 'shop', 'business'] },
+  ];
+
   const filteredTemplates = useMemo(() => {
     return templates.filter((t) => {
+      const q = searchQuery.toLowerCase().trim();
       const matchesSearch =
-        t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (t.bank_name && t.bank_name.toLowerCase().includes(searchQuery.toLowerCase()));
+        !q ||
+        t.name.toLowerCase().includes(q) ||
+        (t.bank_name && t.bank_name.toLowerCase().includes(q));
       const matchesBank = selectedBank === 'all' || (t.bank_name || 'General') === selectedBank;
-      return matchesSearch && matchesBank;
+
+      let matchesCategory = true;
+      if (selectedCategory !== 'all') {
+        const catDef = DOCUMENT_CATEGORIES.find((c) => c.id === selectedCategory);
+        if (catDef && catDef.keywords) {
+          const fullText = `${t.name} ${t.bank_name || ''}`.toLowerCase();
+          matchesCategory = catDef.keywords.some((kw) => fullText.includes(kw));
+        }
+      }
+
+      return matchesSearch && matchesBank && matchesCategory;
     });
-  }, [templates, searchQuery, selectedBank]);
+  }, [templates, searchQuery, selectedBank, selectedCategory]);
 
   const handleDeleteAll = async () => {
     if (!confirm('Are you sure you want to delete all templates and groups from your library?')) return;
@@ -453,6 +491,42 @@ export const TemplateManagerView: React.FC<TemplateManagerViewProps> = ({
             <span>New Group</span>
           </button>
         </div>
+
+        {/* Document Type / Category Filter Pills */}
+        <div className="flex items-center gap-2 overflow-x-auto pt-2 border-t border-slate-800 scrollbar-thin">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
+            <Tag className="w-3 h-3 text-sky-400" />
+            Category:
+          </span>
+          {DOCUMENT_CATEGORIES.map((cat) => {
+            const isSelected = selectedCategory === cat.id;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => setSelectedCategory(cat.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-medium shrink-0 transition-all cursor-pointer ${
+                  isSelected
+                    ? 'bg-sky-500 text-white font-bold shadow-md shadow-sky-500/20'
+                    : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'
+                }`}
+              >
+                {cat.label}
+              </button>
+            );
+          })}
+          {(searchQuery || selectedBank !== 'all' || selectedCategory !== 'all') && (
+            <button
+              onClick={() => {
+                handleSearchChange('');
+                setSelectedBank('all');
+                setSelectedCategory('all');
+              }}
+              className="text-xs text-amber-400 hover:text-amber-300 underline font-semibold shrink-0 ml-2 cursor-pointer"
+            >
+              Reset Filters
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Active Folder Header + Search Bar */}
@@ -476,16 +550,55 @@ export const TemplateManagerView: React.FC<TemplateManagerViewProps> = ({
           )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* View Toggle */}
+          <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
+            <button
+              onClick={() => setViewLayout('horizontal_rows')}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                viewLayout === 'horizontal_rows'
+                  ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="Display template names horizontally in wide rows"
+            >
+              <LayoutList className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Horizontal</span>
+            </button>
+            <button
+              onClick={() => setViewLayout('grid')}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                viewLayout === 'grid'
+                  ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="Display template cards in grid"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Grid</span>
+            </button>
+          </div>
+
+          {/* Search with explicit Clear button (Never auto-clears) */}
           <div className="relative w-full sm:w-72">
             <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder={`Search in ${selectedBank === 'all' ? 'all templates' : selectedBank}...`}
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-900/80 border border-slate-800 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-900/80 border border-slate-800 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-400"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => handleSearchChange('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white cursor-pointer"
+                title="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           {selectedBank !== 'all' && (
@@ -544,7 +657,127 @@ export const TemplateManagerView: React.FC<TemplateManagerViewProps> = ({
             </button>
           </div>
         </div>
+      ) : viewLayout === 'horizontal_rows' ? (
+        /* HORIZONTAL ROWS VIEW (Template names displayed horizontally in wide linear cards) */
+        <div className="space-y-3">
+          {filteredTemplates.map((t) => (
+            <div
+              key={t.id}
+              className="glass-panel rounded-2xl p-4.5 border border-slate-800 hover:border-slate-700 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 group"
+            >
+              {/* Left: Icon + Bank + Full Horizontal Name */}
+              <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sky-500/10 text-sky-300 border border-sky-500/30 flex items-center gap-1 shrink-0">
+                      <Building2 className="w-3 h-3 text-sky-400" />
+                      <span>{t.bank_name || 'General'}</span>
+                    </span>
+                    <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-slate-800 text-slate-300 border border-slate-700 uppercase shrink-0">
+                      {t.name.split('.').pop() || 'DOCX'}
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      ID: {t.id.slice(0, 8)}...
+                    </span>
+                  </div>
+                  {/* Full Template Name Horizontally */}
+                  {editingId === t.id ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        className="px-2 py-1 rounded bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none w-full"
+                        autoFocus
+                      />
+                      <button
+                        onClick={() => handleSaveRename(t.id)}
+                        className="p-1 text-emerald-400 hover:bg-emerald-950/40 rounded shrink-0 cursor-pointer"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm sm:text-base font-bold text-white group-hover:text-amber-300 transition-colors break-words flex-1" title={t.name}>
+                        {t.name}
+                      </h3>
+                      <button
+                        onClick={() => handleStartRename(t)}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-white transition-opacity cursor-pointer"
+                        title="Edit template name"
+                      >
+                        <Edit3 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Right: Badges & Actions */}
+              <div className="flex items-center justify-between md:justify-end gap-3 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-800/80">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 font-mono text-[11px] font-semibold">
+                    {t.fields_count} runs
+                  </span>
+                  {t.table_groups_count > 0 && (
+                    <span className="px-2.5 py-1 rounded-lg bg-purple-500/15 text-purple-300 border border-purple-500/30 flex items-center gap-1 font-mono text-[11px] font-semibold">
+                      <TableIcon className="w-3 h-3" />
+                      {t.table_groups_count} tables
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => handleInspect(t.id)}
+                    className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800 transition-colors cursor-pointer"
+                    title="Inspect template fields & tables"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </button>
+                  <a
+                    href={getTemplateDownloadUrl(t.id)}
+                    download
+                    className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800 transition-colors cursor-pointer"
+                    title="Download template .docx"
+                  >
+                    <Download className="w-4 h-4" />
+                  </a>
+                  {onOpenInStudio && (
+                    <button
+                      onClick={() => onOpenInStudio(t.id)}
+                      className="px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 transition-colors cursor-pointer"
+                      title="Edit in Visual Template Studio"
+                    >
+                      Studio
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleUseTemplate(t.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 hover:bg-amber-300 text-slate-950 transition-all shadow-sm cursor-pointer"
+                    title="Use this template in workspace"
+                  >
+                    <span>Use Template</span>
+                    <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(t.id, t.name)}
+                    className="p-2 rounded-xl text-slate-600 hover:text-rose-400 hover:bg-rose-950/30 transition-colors cursor-pointer"
+                    title="Delete template"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       ) : (
+        /* GRID CARDS VIEW */
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filteredTemplates.map((t) => (
             <div
@@ -609,7 +842,7 @@ export const TemplateManagerView: React.FC<TemplateManagerViewProps> = ({
                       </div>
                     ) : (
                       <div className="flex items-center gap-1.5">
-                        <h3 className="text-xs font-bold text-white truncate max-w-[280px]" title={t.name}>
+                        <h3 className="text-xs sm:text-sm font-bold text-white break-words flex-1" title={t.name}>
                           {t.name}
                         </h3>
                         <button

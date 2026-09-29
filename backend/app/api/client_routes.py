@@ -6,11 +6,15 @@ client search, and full scrutiny history association.
 
 import json
 import uuid
+import io
+import re
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_, func
+from sqlalchemy import select, or_, func, update, delete
 from pydantic import BaseModel, Field
+import docx
 
 from backend.app.db.database import get_db
 from backend.app.db.models import (
@@ -21,6 +25,12 @@ from backend.app.db.models import (
     User
 )
 from backend.app.core.auth import get_current_user_optional
+from backend.app.core.doc_processor import (
+    apply_field_values_universal,
+    HighlightedField,
+    convert_docx_to_pdf_bytes,
+    convert_docx_to_txt_bytes
+)
 
 router = APIRouter(prefix="/api/clients", tags=["clients"])
 
@@ -56,6 +66,12 @@ class CheckExistingClientResponse(BaseModel):
     client: Optional[ClientResponse] = None
 
 
+class DeleteClientResponse(BaseModel):
+    success: bool
+    message: str
+    client_id: str
+
+
 class ClientScrutinyHistory(BaseModel):
     session_id: str
     template_filename: str
@@ -65,6 +81,16 @@ class ClientScrutinyHistory(BaseModel):
     sources_names: List[str] = Field(default_factory=list)
     final_document_ready: bool = False
     history_id: Optional[str] = None
+    title_holder: Optional[str] = None
+    property_extent: Optional[str] = None
+    survey_numbers: Optional[str] = None
+    sro_name: Optional[str] = None
+    matter_title: Optional[str] = None
+    preview_paragraphs: List[str] = Field(default_factory=list)
+    preview_text: Optional[str] = None
+    download_url_docx: str = ""
+    download_url_pdf: str = ""
+    download_url_txt: str = ""
 
 
 class ClientDetailResponse(BaseModel):
@@ -272,6 +298,7 @@ async def get_client_detail(
     """
     Retrieves full client details along with complete scrutiny history:
     Client -> Template -> Scrutiny Session -> Uploaded Documents -> Generated Document.
+    Extracts preview text, title holder, survey numbers, and provides 1-click download URLs.
     """
     stmt = select(Client).where(Client.id == client_id)
     res = await db.execute(stmt)
@@ -301,6 +328,89 @@ async def get_client_detail(
             except Exception:
                 pass
 
+        # Auto-synthesize final_docx_bytes if not yet created but extracted results exist
+        if not s.final_docx_bytes and s.template_bytes and s.results_json:
+            try:
+                fields = [HighlightedField(**f) for f in json.loads(s.fields_json or "[]")]
+                field_values = {}
+                res_list = json.loads(s.results_json)
+                for r in res_list:
+                    if isinstance(r, dict) and "field_id" in r:
+                        field_values[r["field_id"]] = r.get("value") or r.get("suggested_value") or ""
+                table_records = json.loads(s.table_results_json or "{}") if s.table_results_json else {}
+                output_bio, _ = apply_field_values_universal(
+                    template_source=s.template_bytes,
+                    filename=s.template_filename or "template.docx",
+                    fields=fields,
+                    field_values=field_values,
+                    table_group_records=table_records,
+                    clear_highlight=True
+                )
+                s.final_docx_bytes = output_bio.getvalue()
+                s.status = "completed"
+                await db.commit()
+                await db.refresh(s)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"On-demand synthesis in client detail failed: {e}")
+
+        # Extract document particulars and preview paragraphs
+        title_holder = None
+        property_extent = None
+        survey_numbers = None
+        sro_name = None
+        preview_paras: List[str] = []
+        preview_text = None
+
+        if s.final_docx_bytes:
+            try:
+                doc = docx.Document(io.BytesIO(s.final_docx_bytes))
+                for p in doc.paragraphs:
+                    t = p.text.strip()
+                    if t:
+                        preview_paras.append(t)
+
+                table_lines = []
+                for tbl in doc.tables:
+                    for row in tbl.rows:
+                        row_txt = " | ".join(c.text.strip() for c in row.cells if c.text.strip())
+                        if row_txt:
+                            table_lines.append(row_txt)
+
+                preview_text = "\n\n".join(preview_paras)
+                full_searchable = preview_text + "\n" + "\n".join(table_lines)
+
+                th_m = re.search(r'(?:properties owned by|Name of the Borrower\s*:)\s*([^\n\r]+)', full_searchable, re.IGNORECASE)
+                if th_m:
+                    title_holder = th_m.group(1).strip()
+
+                ext_m = re.search(r'(?:measuring an extent of|extent of)\s+([0-9\.]+\s*(?:Acres|HEC|Hectares|Cents|Sq\.?\s*Ft))', full_searchable, re.IGNORECASE)
+                if ext_m:
+                    property_extent = ext_m.group(1).strip()
+
+                s_nums = re.findall(r'(?:S\.F\.\s*No\.?|Survey\s*No\.?|S\.No\.?)\s*([0-9]+/[0-9A-Za-z]+)', full_searchable, re.IGNORECASE)
+                if s_nums:
+                    survey_numbers = ", ".join(sorted(list(set(s_nums))))
+
+                sro_m = re.search(r'(SRO\s+[A-Za-z]+|Sub-Registrar\s+Office[,\s]+[A-Za-z]+)', full_searchable, re.IGNORECASE)
+                if sro_m:
+                    sro_name = sro_m.group(1).strip()
+            except Exception:
+                pass
+
+        # Fallback to results_json if needed
+        if (not title_holder or not property_extent) and s.results_json:
+            try:
+                res_list = json.loads(s.results_json)
+                for r in res_list:
+                    txt = str(r.get("value") or r.get("suggested_value") or "")
+                    if not title_holder and "owned by" in txt:
+                        title_holder = txt.split("owned by")[-1].strip()
+                    if not property_extent and ("Acres" in txt or "HEC" in txt):
+                        property_extent = txt.strip()
+            except Exception:
+                pass
+
         scrutinies.append(ClientScrutinyHistory(
             session_id=s.id,
             template_filename=s.template_filename or "Legal Scrutiny",
@@ -309,7 +419,17 @@ async def get_client_detail(
             sources_count=src_count,
             sources_names=src_names,
             final_document_ready=bool(s.final_docx_bytes is not None),
-            history_id=hist_map.get(s.id)
+            history_id=hist_map.get(s.id),
+            title_holder=title_holder or client.name,
+            property_extent=property_extent,
+            survey_numbers=survey_numbers,
+            sro_name=sro_name,
+            matter_title=client.title,
+            preview_paragraphs=preview_paras[:50],
+            preview_text=preview_text[:12000] if preview_text else None,
+            download_url_docx=f"/api/sessions/{s.id}/download?format=docx",
+            download_url_pdf=f"/api/sessions/{s.id}/download?format=pdf",
+            download_url_txt=f"/api/sessions/{s.id}/download?format=txt"
         ))
 
     return ClientDetailResponse(
@@ -323,6 +443,91 @@ async def get_client_detail(
         scrutiny_count=len(scrutinies),
         scrutinies=scrutinies
     )
+
+
+@router.get("/{client_id}/documents/{session_id}/download")
+async def download_client_document(
+    client_id: str,
+    session_id: str,
+    format: Optional[str] = "docx",
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Downloads the completed legal scrutiny document generated for a specific client.
+    Serves .docx, .pdf, or .txt with client-specific naming.
+    """
+    stmt_c = select(Client).where(Client.id == client_id)
+    res_c = await db.execute(stmt_c)
+    client = res_c.scalar_one_or_none()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    stmt_s = select(GenerationSession).where(
+        GenerationSession.id == session_id,
+        GenerationSession.client_id == client_id
+    )
+    res_s = await db.execute(stmt_s)
+    session = res_s.scalar_one_or_none()
+    if not session:
+        # Check without client_id restriction in case session was generated globally
+        stmt_fallback = select(GenerationSession).where(GenerationSession.id == session_id)
+        res_fb = await db.execute(stmt_fallback)
+        session = res_fb.scalar_one_or_none()
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+    if not session.final_docx_bytes and session.template_bytes and session.results_json:
+        try:
+            fields = [HighlightedField(**f) for f in json.loads(session.fields_json or "[]")]
+            field_values = {}
+            res_list = json.loads(session.results_json)
+            for r in res_list:
+                if isinstance(r, dict) and "field_id" in r:
+                    field_values[r["field_id"]] = r.get("value") or r.get("suggested_value") or ""
+            table_records = json.loads(session.table_results_json or "{}") if session.table_results_json else {}
+            output_bio, _ = apply_field_values_universal(
+                template_source=session.template_bytes,
+                filename=session.template_filename or "template.docx",
+                fields=fields,
+                field_values=field_values,
+                table_group_records=table_records,
+                clear_highlight=True
+            )
+            session.final_docx_bytes = output_bio.getvalue()
+            session.status = "completed"
+            await db.commit()
+            await db.refresh(session)
+        except Exception as e:
+            pass
+
+    if not session.final_docx_bytes:
+        raise HTTPException(status_code=404, detail="No document generated yet for this client session")
+
+    safe_client_name = re.sub(r'[^A-Za-z0-9_-]', '_', client.name.strip())
+    base_name = f"{safe_client_name}_Legal_Opinion_{session_id[:8]}"
+    final_bytes = session.final_docx_bytes
+    requested_fmt = (format or "docx").lower().strip()
+
+    if requested_fmt == "pdf":
+        pdf_bytes = convert_docx_to_pdf_bytes(final_bytes)
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{base_name}.pdf"'}
+        )
+    elif requested_fmt in ("txt", "text"):
+        txt_bytes = convert_docx_to_txt_bytes(final_bytes)
+        return Response(
+            content=txt_bytes,
+            media_type="text/plain; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{base_name}.txt"'}
+        )
+    else:
+        return Response(
+            content=final_bytes,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": f'attachment; filename="{base_name}.docx"'}
+        )
 
 
 @router.post("/{client_id}/start-scrutiny", response_model=StartScrutinyResponse)
@@ -391,3 +596,53 @@ async def start_scrutiny_for_client(
             scrutiny_count=1
         )
     )
+
+
+@router.delete("/{client_id}", response_model=DeleteClientResponse)
+async def delete_client(
+    client_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Permanently deletes a client from the database.
+    Dissociates any related sessions or history items to maintain data integrity.
+    """
+    stmt = select(Client).where(Client.id == client_id)
+    res = await db.execute(stmt)
+    client = res.scalar_one_or_none()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    client_name = client.name
+
+    # Dissociate any linked sessions and history items
+    await db.execute(
+        update(GenerationSession)
+        .where(GenerationSession.client_id == client_id)
+        .values(client_id=None)
+    )
+    await db.execute(
+        update(DocumentHistoryItem)
+        .where(DocumentHistoryItem.client_id == client_id)
+        .values(client_id=None)
+    )
+
+    try:
+        from backend.app.db.models import TemplateQASession
+        await db.execute(
+            update(TemplateQASession)
+            .where(TemplateQASession.client_id == client_id)
+            .values(client_id=None)
+        )
+    except Exception:
+        pass
+
+    await db.delete(client)
+    await db.commit()
+
+    return DeleteClientResponse(
+        success=True,
+        message=f"Client '{client_name}' deleted successfully",
+        client_id=client_id
+    )
+

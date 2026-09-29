@@ -138,24 +138,32 @@ def run_gemini_multimodal_ocr(image: Image.Image, api_key: Optional[str] = None)
         ],
         "generationConfig": {
             "temperature": 0.0,
-            "maxOutputTokens": 4096
+            "maxOutputTokens": 4096,
+            "thinkingConfig": {
+                "thinkingBudget": 0
+            }
         }
     }
 
     models_to_try = [
-        "gemini-3.6-flash",
-        "gemini-3.1-flash-lite",
-        "gemini-flash-lite-latest",
-        "gemini-3.7-flash",
-        "gemini-3.5-flash",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
         "gemini-flash-latest"
     ]
 
+    headers = {"Content-Type": "application/json"}
     for model_name in models_to_try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={target_key}"
+        if target_key.startswith("AQ.") or target_key.startswith("ya29."):
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
+            headers["Authorization"] = f"Bearer {target_key}"
+        else:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={target_key}"
+
         try:
-            with httpx.Client(timeout=30.0, verify=False) as client:
-                res = client.post(url, json=payload)
+            with httpx.Client(timeout=15.0, verify=False) as client:
+                res = client.post(url, json=payload, headers=headers)
                 if res.status_code == 200:
                     data = res.json()
                     candidates = data.get("candidates", [])

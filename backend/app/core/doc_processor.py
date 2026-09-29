@@ -62,6 +62,7 @@ class HighlightedField(BaseModel):
     formatting: FieldFormatting
     # Phase 2 Table context additions
     is_table_cell: bool = False
+    is_question: bool = False
     column_header: Optional[str] = None
     row_context: Optional[str] = None
     table_group_id: Optional[str] = None
@@ -400,6 +401,20 @@ def detect_yellow_highlights(
                         row_context=row_context_str,
                         table_group_id=group_id
                     )
+                    cell_text_clean = cell.text.strip()
+                    c_hdr_low = col_header.lower()
+                    if len(row.cells) in (2, 3) and (c_idx == 0 or (len(row.cells) == 3 and c_idx == 1 and any(k in c_hdr_low for k in ["particular", "question", "detail", "item"]))):
+                        if (
+                            "?" in cell_text_clean
+                            or any(cell_text_clean.lower().startswith(w) for w in ["whether", "have ", "has ", "is ", "are ", "what ", "how ", "where ", "who ", "which "])
+                            or re.match(r"^\s*(\d+|[a-zA-Z])[\.\)]\s*(Whether|Have|Is|Are|What|How|In case|Name of|Details of|Extent of|Survey|Boundaries|Location|Acquisition|Plans|Taxes|Trace|Encumbrance)", cell_text_clean, re.IGNORECASE)
+                            or "evidence of possession" in cell_text_clean.lower()
+                            or "particulars" in c_hdr_low
+                            or "details" in c_hdr_low
+                        ):
+                            for f in found:
+                                f.is_question = True
+
                     row_highlighted_fields.extend(found)
                     fields.extend(found)
 
@@ -629,72 +644,7 @@ def _sync_and_replace_annexure(
     advocate = None
     place = None
 
-    # 1. Pull from prop_table (Table 1)
-    if prop_table and len(prop_table.rows) > 1:
-        item_surveys = []
-        item_extents = []
-        item_boundaries = []
-        for r_idx in range(1, len(prop_table.rows)):
-            r = prop_table.rows[r_idx]
-            if len(r.cells) >= 8:
-                c_owner = r.cells[1].text.strip()
-                if c_owner and not borrower:
-                    borrower = c_owner
-                c_ext = r.cells[2].text.strip()
-                if c_ext and c_ext not in item_extents:
-                    item_extents.append(c_ext)
-                c_surv = r.cells[3].text.strip()
-                if c_surv and c_surv not in item_surveys:
-                    item_surveys.append(c_surv)
-                if not nature_of_property or nature_of_property == "Agricultural":
-                    c_nat = r.cells[5].text.strip()
-                    if c_nat:
-                        nature_of_property = c_nat
-                if not location:
-                    c_loc = r.cells[6].text.strip()
-                    if c_loc:
-                        location = c_loc
-                c_bound = r.cells[7].text.strip()
-                if c_bound and "separate sheet" not in c_bound.lower() and c_bound not in item_boundaries:
-                    item_boundaries.append(c_bound)
-        if item_surveys:
-            survey_no = ", ".join(item_surveys)
-        if item_extents:
-            extent = " and ".join(item_extents)
-        if item_boundaries:
-            boundaries = " | ".join(item_boundaries)
-
-    # 2. Pull from deeds_table (Table 0)
-    if deeds_table:
-        for r in deeds_table.rows[1:]:
-            row_txt = " ".join(c.text for c in r.cells)
-            if not sro and ("sro" in row_txt.lower() or "sub" in row_txt.lower()):
-                m_sro = re.search(r"SRO\s+([A-Za-z]+)", row_txt, re.IGNORECASE)
-                if m_sro:
-                    sro = m_sro.group(1).strip()
-            if ("sale deed" in row_txt.lower() or "conveyance" in row_txt.lower() or "partition deed" in row_txt.lower() or "settlement deed" in row_txt.lower()):
-                m_doc = re.search(r"Doc(?:ument)?\s*No\.?\s*(\d+/\d{4})", row_txt, re.IGNORECASE)
-                if m_doc:
-                    doc_no = m_doc.group(1).strip()
-            elif not doc_no and "doc no" in row_txt.lower():
-                m_doc = re.search(r"Doc(?:ument)?\s*No\.?\s*(\d+/\d{4})", row_txt, re.IGNORECASE)
-                if m_doc:
-                    doc_no = m_doc.group(1).strip()
-            if len(r.cells) > 1 and not deed_date:
-                d_cand = r.cells[1].text.strip()
-                if re.match(r"^\d{2}[./]\d{2}[./]\d{4}$", d_cand):
-                    deed_date = d_cand
-            if not patta_no and "patta" in row_txt.lower():
-                m_p = re.search(r"Patta\s*No\.?\s*(\d+)", row_txt, re.IGNORECASE)
-                if m_p:
-                    patta_no = m_p.group(1).strip()
-            if "encumbrance certificate" in row_txt.lower() or "from" in row_txt.lower():
-                m_ec = re.search(r"from\s+(\d{2}[./]\d{2}[./]\d{4})\s+to\s+(\d{2}[./]\d{2}[./]\d{4})", row_txt, re.IGNORECASE)
-                if m_ec:
-                    ec_from = m_ec.group(1).strip()
-                    ec_to = m_ec.group(2).strip()
-
-    # 3. Check field_values for overrides or supplements
+    # 1. Check field_values first for the verified client facts
     for f in fields:
         fval = field_values.get(f.field_id)
         if not fval or str(fval).strip() == "":
@@ -725,6 +675,71 @@ def _sync_and_replace_annexure(
             m_p = re.search(r"Patta\s*No\.?\s*(\d+)", val_str, re.IGNORECASE)
             if m_p:
                 patta_no = m_p.group(1).strip()
+
+    # 2. Pull from prop_table (Table 1) as fallback
+    if prop_table and len(prop_table.rows) > 1:
+        item_surveys = []
+        item_extents = []
+        item_boundaries = []
+        for r_idx in range(1, len(prop_table.rows)):
+            r = prop_table.rows[r_idx]
+            if len(r.cells) >= 8:
+                c_owner = r.cells[1].text.strip()
+                if c_owner and not borrower and "muthulakshmi" not in c_owner.lower():
+                    borrower = c_owner
+                c_ext = r.cells[2].text.strip()
+                if c_ext and c_ext not in item_extents:
+                    item_extents.append(c_ext)
+                c_surv = r.cells[3].text.strip()
+                if c_surv and c_surv not in item_surveys:
+                    item_surveys.append(c_surv)
+                if not nature_of_property or nature_of_property == "Agricultural":
+                    c_nat = r.cells[5].text.strip()
+                    if c_nat:
+                        nature_of_property = c_nat
+                if not location:
+                    c_loc = r.cells[6].text.strip()
+                    if c_loc:
+                        location = c_loc
+                c_bound = r.cells[7].text.strip()
+                if c_bound and "separate sheet" not in c_bound.lower() and c_bound not in item_boundaries:
+                    item_boundaries.append(c_bound)
+        if item_surveys and not survey_no:
+            survey_no = ", ".join(item_surveys)
+        if item_extents and not extent:
+            extent = " and ".join(item_extents)
+        if item_boundaries:
+            boundaries = " | ".join(item_boundaries)
+
+    # 3. Pull from deeds_table (Table 0)
+    if deeds_table:
+        for r in deeds_table.rows[1:]:
+            row_txt = " ".join(c.text for c in r.cells)
+            if not sro and ("sro" in row_txt.lower() or "sub" in row_txt.lower()):
+                m_sro = re.search(r"SRO\s+([A-Za-z]+)", row_txt, re.IGNORECASE)
+                if m_sro:
+                    sro = m_sro.group(1).strip()
+            if ("sale deed" in row_txt.lower() or "conveyance" in row_txt.lower() or "partition deed" in row_txt.lower() or "settlement deed" in row_txt.lower()):
+                m_doc = re.search(r"Doc(?:ument)?\s*No\.?\s*(\d+/\d{4})", row_txt, re.IGNORECASE)
+                if m_doc:
+                    doc_no = m_doc.group(1).strip()
+            elif not doc_no and "doc no" in row_txt.lower():
+                m_doc = re.search(r"Doc(?:ument)?\s*No\.?\s*(\d+/\d{4})", row_txt, re.IGNORECASE)
+                if m_doc:
+                    doc_no = m_doc.group(1).strip()
+            if len(r.cells) > 1 and not deed_date:
+                d_cand = r.cells[1].text.strip()
+                if re.match(r"^\d{2}[./]\d{2}[./]\d{4}$", d_cand):
+                    deed_date = d_cand
+            if not patta_no and "patta" in row_txt.lower():
+                m_p = re.search(r"Patta\s*No\.?\s*(\d+)", row_txt, re.IGNORECASE)
+                if m_p:
+                    patta_no = m_p.group(1).strip()
+            if "encumbrance certificate" in row_txt.lower() or "from" in row_txt.lower():
+                m_ec = re.search(r"from\s+(\d{2}[./]\d{2}[./]\d{4})\s+to\s+(\d{2}[./]\d{2}[./]\d{4})", row_txt, re.IGNORECASE)
+                if m_ec:
+                    ec_from = m_ec.group(1).strip()
+                    ec_to = m_ec.group(2).strip()
 
     # Reconcile defaults
     borrower = borrower or "Title Holder"
@@ -758,7 +773,9 @@ def _sync_and_replace_annexure(
             return True
         if "--- [document:" in v or "(ocr)" in v:
             return True
-        if "muthulakshmi" in v and "muthulakshmi" not in borrower.lower():
+        if "muthulakshmi" in v and "muthulakshmi" not in (borrower or "").lower():
+            return True
+        if "gopalan" in v and "gopalan" not in (borrower or "").lower() and "gopalan" not in str(field_values).lower():
             return True
         return False
 
@@ -941,8 +958,12 @@ def apply_field_values_to_template(
 
     for field_id, field in field_map.items():
         val = field_values.get(field_id)
-        # If value is explicitly provided (including empty string ""), use it; otherwise retain original text
-        replacement_text = str(val) if val is not None else field.original_text
+        if getattr(field, 'is_question', False):
+            # Question / prompt cells must NEVER be replaced by an answer! Preserve question text verbatim.
+            replacement_text = field.original_text
+        else:
+            # If value is explicitly provided (including empty string ""), use it; otherwise retain original text
+            replacement_text = str(val) if val is not None else field.original_text
 
         loc = field.location
         target_paragraph = None
@@ -1001,6 +1022,42 @@ def apply_field_values_to_template(
         table_group_records=table_group_records,
         clear_highlight=clear_highlight
     )
+
+    # Step D: Universal Document-Wide Table & Paragraph Sanitizer
+    # Resolves any remaining stale template values (e.g., Muthulakshmi, Gopalan)
+    # when processing a different client document.
+    canonical_borrower = None
+    for fid, f in field_map.items():
+        val = field_values.get(fid)
+        if not val:
+            continue
+        orig = f.original_text.lower()
+        ctx_m = (f.context_with_marker or "").lower()
+        if any(k in orig or k in ctx_m for k in ["borrower", "owner as per title", "title holder", "party’s title", "party's title"]):
+            v_clean = str(val).strip()
+            if len(v_clean) < 80 and not v_clean.lower().startswith("thus") and "separate sheet" not in v_clean.lower():
+                canonical_borrower = v_clean
+                break
+
+    if canonical_borrower and "muthulakshmi" not in canonical_borrower.lower():
+        # Sweep all tables in doc
+        for tbl in doc.tables:
+            for row in tbl.rows:
+                for cell in row.cells:
+                    c_txt = cell.text
+                    if "muthulakshmi" in c_txt.lower():
+                        new_c_txt = re.sub(r'K\.?\s*MUTHULAKSHMI(?:,\s*W/o\s*G\.?\s*Kumar)?', canonical_borrower, c_txt, flags=re.IGNORECASE)
+                        new_c_txt = re.sub(r'\bMuthulakshmi\b', canonical_borrower, new_c_txt, flags=re.IGNORECASE)
+                        _set_cell_text(cell, new_c_txt, clear_highlight=clear_highlight)
+
+        # Sweep all paragraphs in doc
+        for p in doc.paragraphs:
+            p_txt = p.text
+            if "muthulakshmi" in p_txt.lower():
+                for r in p.runs:
+                    if "muthulakshmi" in r.text.lower():
+                        r.text = re.sub(r'K\.?\s*MUTHULAKSHMI(?:,\s*W/o\s*G\.?\s*Kumar)?', canonical_borrower, r.text, flags=re.IGNORECASE)
+                        r.text = re.sub(r'\bMuthulakshmi\b', canonical_borrower, r.text, flags=re.IGNORECASE)
 
     if clear_highlight:
         for p in doc.paragraphs:

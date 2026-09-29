@@ -697,8 +697,8 @@ def clean_extent(val: Optional[str], default: str = "6.11 Acres") -> str:
     return s
 
 
-def clean_party_name(val: Optional[str], default: str = "Balashanmugam, S/o Kalimuthu Chettiyar") -> str:
-    """Extracts a clean legal person / party name, eliminating label prefixes and narrative paragraphs."""
+def clean_party_name(val: Optional[str], default: str = "") -> str:
+    """Extracts a clean legal person / party name, eliminating label prefixes, honorific titles, and narrative paragraphs."""
     if not val or not str(val).strip():
         return default
     s = str(val).strip()
@@ -710,6 +710,13 @@ def clean_party_name(val: Optional[str], default: str = "Balashanmugam, S/o Kali
         flags=re.IGNORECASE
     ).strip()
     s = s.strip("\"'()[]:; ")
+
+    # Strip honorific titles if attached at start
+    s = re.sub(r'^(?:(?:Mr|Mrs|Ms|Shri|Smt|Dr)\.?\s+)+', '', s, flags=re.IGNORECASE).strip()
+
+    # Reject standalone title tokens that have no actual person name
+    if s.lower() in ("mr", "mrs", "ms", "dr", "shri", "smt", "the", "party", "applicant", "borrower"):
+        return default
 
     if len(s) > 75 or any(k in s.lower() for k in ["the properties", "measuring an extent", "registered as", "office of the sub-registrar", "subsequently", "pursuant to", "recital of", "divided the properties"]):
         m = re.search(r'([A-Z][A-Za-z\.\s]+(?:,\s*(?:S/o|W/o|D/o)\s+[A-Z][A-Za-z\.\s]+)?)', s)
@@ -764,6 +771,8 @@ def clean_sro(val: Optional[str], default: str = "Anaimalai") -> str:
         return default
     s = str(val).strip()
     s = re.sub(r'^(?:SRO\s*Name|SRO|Sub-Registrar\s*Office)\s*[:\-–—]\s*', '', s, flags=re.IGNORECASE).strip()
+    if "அலுவலக" in s or "office" == s.lower():
+        return default
     if len(s) > 30:
         for known_sro in ["Anaimalai", "Pollachi", "Coimbatore", "Kinathukadavu", "Negamam", "Valparai", "Udumalpet", "Sulur"]:
             if known_sro.lower() in s.lower():
@@ -1132,8 +1141,20 @@ def format_certificate_of_title(text: str, ctx: Optional[Dict[str, Any]] = None)
             if re.search(dummy_pattern, t, flags=re.IGNORECASE):
                 t = re.sub(dummy_pattern, holder, t, flags=re.IGNORECASE)
 
-    # 5. Location replacement if present in certificate
-    if village and ("situated at" in t.lower() or "relating to the property/ies" in t.lower()):
+    # 5. Property schedule & location replacement if present in certificate
+    raw_sf = context.get("sf_nos", "")
+    raw_ext = context.get("extent", "")
+    raw_taluk = context.get("taluk", "")
+    if (raw_sf or raw_ext) and "examined" in t.lower() and "and offered as security" in t.lower():
+        loc_str = f"{village}, {raw_taluk}" if (village and raw_taluk) else (village or raw_taluk or "the Village")
+        prop_str = f"the properties in {raw_sf} measuring an extent of {raw_ext}" if (raw_sf and raw_ext) else (raw_sf or raw_ext)
+        t = re.sub(
+            r'(related\s+to\s+)[\s\S]+?(\s+situated\s+at\s+)[\s\S]+?(\s+and\s+offered\s+as\s+security)',
+            rf'\g<1>{prop_str}\g<2>{loc_str}\g<3>',
+            t,
+            flags=re.IGNORECASE
+        )
+    elif village and ("situated at" in t.lower() or "relating to the property/ies" in t.lower()):
         t = re.sub(
             r'(situated\s+at\s+)[^.,;]+?(\s+and\s+offered)',
             rf'\g<1>{village}\g<2>',

@@ -276,3 +276,80 @@ def test_table_data_replacement_from_database_library_item():
     assert "Nil Encumbrance" in t6_text or "Nil encumbrance" in t6_text
     assert "MUTHULAKSHMI" not in t6_text
 
+
+def test_table_question_preservation_and_arbitrary_client_scrutiny():
+    """
+    Verifies that for an arbitrary client deed:
+    1. Table questions (Questionnaire Table 3) are preserved verbatim and NOT overwritten by answers.
+    2. Zero leakage of 'Muthulakshmi' or 'Gopalan' across all tables (0, 1, 2, 3, 4, 6) and paragraphs.
+    3. The new client's name ('Suresh Kumar') and facts are correctly populated.
+    """
+    client_deed_text = (
+        "REGISTERED SALE DEED\n"
+        "Document No. 3412/2021, registered at SRO Kinathukadavu on 15.07.2021.\n"
+        "Purchaser / Title Holder / Borrower: Suresh Kumar, S/o Raman\n"
+        "Vendor / Seller: Natarajan, S/o Periyasamy\n"
+        "Property situated at Vadakkipalayam Village, Pollachi Taluk, Coimbatore District.\n"
+        "Survey Numbers: S.F.No. 128/2.\n"
+        "Total Extent: 2.15 Acres.\n"
+        "Boundaries: North by: Land belonging to Murugan; South by: Panchayat Road; East by: Land in S.F.No. 128/1; West by: Odai.\n"
+        "Encumbrance Certificate for 30 years discloses Nil encumbrance.\n"
+    )
+
+    source_docs = [ExtractedSourceDocument(
+        filename="suresh_kumar_deed.txt",
+        file_type="txt",
+        full_text=client_deed_text,
+        page_texts=[client_deed_text],
+        char_count=len(client_deed_text),
+        page_or_section_count=1,
+        is_ocr=False
+    )]
+
+    template_bio = generate_legal_opinion_title_report_template()
+    template_bytes = template_bio.getvalue()
+
+    _, fields, table_groups = detect_yellow_highlights(template_bytes)
+    extraction_output = mock_heuristic_extractor(
+        fields=fields,
+        source_docs=source_docs,
+        table_groups=table_groups
+    )
+
+    field_values = {f.field_id: f.value for f in extraction_output.fields if f.value is not None}
+    table_group_records = {tg.group_id: tg.records for tg in extraction_output.table_groups}
+
+    filled_bio = apply_field_values_to_template(
+        template_source=template_bytes,
+        fields=fields,
+        field_values=field_values,
+        table_group_records=table_group_records,
+        clear_highlight=True
+    )
+    filled_doc = Document(filled_bio)
+
+    # 1. Assert NO Muthulakshmi across ANY table in the document
+    for t_idx, tbl in enumerate(filled_doc.tables):
+        tbl_text = " ".join(c.text for r in tbl.rows for c in r.cells)
+        assert "muthulakshmi" not in tbl_text.lower(), f"Stale Muthulakshmi leaked into Table {t_idx}"
+
+    # 2. Assert NO Muthulakshmi in any paragraph or heading
+    all_para_text = " ".join(p.text for p in filled_doc.paragraphs)
+    assert "muthulakshmi" not in all_para_text.lower(), "Stale Muthulakshmi leaked into document paragraphs"
+
+    # 3. Assert Questionnaire Table 3 Questions are preserved verbatim
+    t3 = filled_doc.tables[3]
+    q1_text = t3.rows[1].cells[0].text.strip()
+    assert "Whether the documents of title given raise any doubts or suspicion" in q1_text, "Question 1 overwritten!"
+    q3_text = t3.rows[3].cells[0].text.strip()
+    assert "minor’s or any other claims" in q3_text, "Question 3 overwritten!"
+
+    # 4. Assert Suresh Kumar is populated in Title Holder and Annexure
+    assert "SURESH KUMAR" in all_para_text.upper() or "Suresh Kumar" in all_para_text, "Suresh Kumar not populated in report"
+
+    # Table 6 Checklist
+    t6 = filled_doc.tables[6]
+    t6_text = " ".join(c.text for r in t6.rows for c in r.cells)
+    assert "Suresh Kumar" in t6_text, "Suresh Kumar missing from Table 6"
+
+

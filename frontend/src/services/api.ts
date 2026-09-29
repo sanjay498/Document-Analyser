@@ -240,6 +240,8 @@ export async function uploadTemplate(sessionId: string, file: File): Promise<{
   fields: HighlightedField[];
   table_groups: DynamicTableGroup[];
   questions?: TemplateQuestion[];
+  suggested_template_name?: string;
+  suggested_doc_name?: string;
 }> {
   const formData = new FormData();
   formData.append('file', file);
@@ -345,6 +347,8 @@ export async function extractFields(
   questions_count?: number;
   qa_answers?: QuestionAnswer[];
   questions?: TemplateQuestion[];
+  doc_custom_name?: string;
+  suggested_template_name?: string;
 }> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -1635,6 +1639,21 @@ export async function startScrutinyForClient(
   }
   return res.json();
 }
+
+export async function deleteClient(
+  clientId: string
+): Promise<{ success: boolean; message: string; client_id: string }> {
+  const res = await fetch(`${API_BASE}/clients/${clientId}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to delete client' }));
+    throw new Error(err.detail || 'Failed to delete client');
+  }
+  return res.json();
+}
+
 
 
 

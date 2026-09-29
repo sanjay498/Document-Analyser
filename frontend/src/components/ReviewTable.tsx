@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   CheckCircle2,
   AlertTriangle,
@@ -20,9 +20,16 @@ import {
   Edit3,
   BookmarkPlus,
   CheckCheck,
-  BookOpen
+  BookOpen,
+  X
 } from 'lucide-react';
 import { getDeedModels, applyDeedModelToSession, renameSessionDocument, saveSessionAsTemplate } from '../services/api';
+import {
+  generateSmartDocName,
+  generateSmartTemplateName,
+  sanitizeFilename,
+  detectBankAndDocType
+} from '../utils/naming';
 import type {
   HighlightedField,
   FieldExtractionResult,
@@ -89,12 +96,36 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
   const [activeReviewTab, setActiveReviewTab] = useState<'fields' | 'qa'>(
     results.length > 0 ? 'fields' : 'qa'
   );
-  const [customDocName, setCustomDocName] = useState<string>(
-    templateFilename ? templateFilename.replace(/\.[^/.]+$/, '') + '_completed.docx' : 'Legal_Opinion.docx'
+  // Store user-resolved field values: field_id -> string
+  const [resolvedValues, setResolvedValues] = useState<Record<string, string>>({});
+  // Store fields marked explicitly as "leave blank / keep original"
+  const [leaveBlankSet, setLeaveBlankSet] = useState<Set<string>>(new Set());
+  // Store selected conflict sources: field_id -> selected value
+  const [selectedConflictMap, setSelectedConflictMap] = useState<Record<string, string>>({});
+  // Store dynamic table records: group_id -> array of row objects
+  const [dynamicTables, setDynamicTables] = useState<Record<string, Array<Record<string, string>>>>({});
+
+  // Smart Auto-Generated Document Name state
+  const [customDocName, setCustomDocName] = useState<string>(() =>
+    generateSmartDocName({
+      templateFilename,
+      results,
+      fields,
+    })
   );
   const [isEditingDocName, setIsEditingDocName] = useState<boolean>(false);
+  const [editDocNameInput, setEditDocNameInput] = useState<string>(customDocName);
+  const [isEditingBottomDocName, setIsEditingBottomDocName] = useState<boolean>(false);
+  const [editBottomDocNameInput, setEditBottomDocNameInput] = useState<string>(customDocName);
+  const userEditedDocNameRef = useRef<boolean>(false);
+
+  // Template saving modal state
+  const [showSaveTemplateModal, setShowSaveTemplateModal] = useState<boolean>(false);
+  const [templateSaveName, setTemplateSaveName] = useState<string>('');
+  const [templateSaveBank, setTemplateSaveBank] = useState<string>('General');
   const [isSavingTemplate, setIsSavingTemplate] = useState<boolean>(false);
   const [templateSavedMsg, setTemplateSavedMsg] = useState<string | null>(null);
+
   const [qaSearchQuery, setQaSearchQuery] = useState<string>('');
   const [qaFilter, setQaFilter] = useState<'all' | 'complied' | 'conflicts' | 'missing'>('all');
 
@@ -104,11 +135,21 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
     }
   }, [qaAnswers]);
 
+  // Intelligent auto-naming effect: runs when template, results, fields, or resolved values update
   useEffect(() => {
-    if (templateFilename) {
-      setCustomDocName(templateFilename.replace(/\.[^/.]+$/, '') + '_completed.docx');
+    if (!userEditedDocNameRef.current) {
+      const smart = generateSmartDocName({
+        templateFilename,
+        results,
+        fields,
+        resolvedValues,
+      });
+      setCustomDocName(smart);
+      setEditDocNameInput(smart);
+      setEditBottomDocNameInput(smart);
     }
-  }, [templateFilename]);
+  }, [templateFilename, results, fields, resolvedValues]);
+
   const handleUpdateQaAnswer = (questionId: string, answer: string) => {
     setLocalQaAnswers((prev) =>
       prev.map((a) => (a.question_id === questionId ? { ...a, answer, status: 'user_edited' } : a))
@@ -127,40 +168,53 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
     );
   };
 
-  const handleSaveDocName = async () => {
+  // Renaming document filename (ubiquitously available at top & bottom bars)
+  const handleSaveDocName = async (newName?: string) => {
+    const rawName = newName !== undefined ? newName : editDocNameInput;
+    const clean = sanitizeFilename(rawName.trim() || customDocName);
     setIsEditingDocName(false);
-    if (sessionId && customDocName.trim()) {
+    setIsEditingBottomDocName(false);
+    if (!clean) return;
+
+    setCustomDocName(clean);
+    setEditDocNameInput(clean);
+    setEditBottomDocNameInput(clean);
+    userEditedDocNameRef.current = true;
+
+    if (sessionId) {
       try {
-        await renameSessionDocument(sessionId, customDocName.trim());
+        await renameSessionDocument(sessionId, clean);
       } catch (err) {
-        console.error('Failed to rename document:', err);
+        console.error('Failed to rename document on server:', err);
       }
     }
   };
 
-  const handleSaveAsTemplateClick = async () => {
+  const handleOpenSaveTemplateModal = () => {
+    const smartTpl = generateSmartTemplateName({ templateFilename, fields });
+    const detected = detectBankAndDocType('', templateFilename || '');
+    setTemplateSaveName(smartTpl);
+    setTemplateSaveBank(detected.bank || 'General');
+    setShowSaveTemplateModal(true);
+  };
+
+  const handleConfirmSaveTemplate = async () => {
     if (!sessionId) return;
     setIsSavingTemplate(true);
     try {
-      const res = await saveSessionAsTemplate(sessionId, customDocName);
+      const finalTplName = sanitizeFilename(templateSaveName.trim() || 'Template.docx');
+      const res = await saveSessionAsTemplate(sessionId, finalTplName, templateSaveBank);
+      setShowSaveTemplateModal(false);
       setTemplateSavedMsg(`Saved "${res.name}" to Template Library!`);
-      setTimeout(() => setTemplateSavedMsg(null), 4000);
+      setTimeout(() => setTemplateSavedMsg(null), 5000);
       if (onSaveAsTemplate) onSaveAsTemplate();
     } catch (err: any) {
       console.error('Failed to save template:', err);
+      setTemplateSavedMsg(`Error: ${err.message || 'Failed to save template'}`);
     } finally {
       setIsSavingTemplate(false);
     }
   };
-
-  // Store user-resolved field values: field_id -> string
-  const [resolvedValues, setResolvedValues] = useState<Record<string, string>>({});
-  // Store fields marked explicitly as "leave blank / keep original"
-  const [leaveBlankSet, setLeaveBlankSet] = useState<Set<string>>(new Set());
-  // Store selected conflict sources: field_id -> selected value
-  const [selectedConflictMap, setSelectedConflictMap] = useState<Record<string, string>>({});
-  // Store dynamic table records: group_id -> array of row objects
-  const [dynamicTables, setDynamicTables] = useState<Record<string, Array<Record<string, string>>>>({});
   
   const [clearHighlight, setClearHighlight] = useState<boolean>(true);
   const [filter, setFilter] = useState<'all' | 'verified' | 'conflicts' | 'not_found'>('verified');
@@ -487,40 +541,57 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
               04
             </span>
             <h2 className="text-sm font-bold text-white tracking-tight">Review & Audit Document</h2>
-            {/* Inline Editable Document Name */}
-            {isEditingDocName ? (
-              <div className="inline-flex items-center gap-1.5 bg-slate-900 border border-amber-400 rounded-lg px-2 py-0.5">
-                <input
-                  type="text"
-                  value={customDocName}
-                  onChange={(e) => setCustomDocName(e.target.value)}
-                  onBlur={handleSaveDocName}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleSaveDocName();
-                    if (e.key === 'Escape') setIsEditingDocName(false);
-                  }}
-                  className="bg-transparent text-xs text-white font-medium focus:outline-none w-48"
-                  autoFocus
-                />
+            {/* Prominent Editable Document Name */}
+            <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-700/80 rounded-xl px-3 py-1.5 shadow-sm">
+              <FileText className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="text-[11px] text-slate-400 font-medium shrink-0">Doc Name:</span>
+              {isEditingDocName ? (
+                <div className="inline-flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    value={editDocNameInput}
+                    onChange={(e) => setEditDocNameInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveDocName(editDocNameInput);
+                      if (e.key === 'Escape') setIsEditingDocName(false);
+                    }}
+                    className="bg-slate-950 border border-amber-400 rounded px-2 py-0.5 text-xs text-white focus:outline-none w-56 font-mono"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleSaveDocName(editDocNameInput)}
+                    className="text-emerald-400 hover:text-emerald-300 p-1 cursor-pointer rounded hover:bg-slate-800"
+                    title="Save Name"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingDocName(false)}
+                    className="text-slate-400 hover:text-slate-200 p-1 cursor-pointer rounded hover:bg-slate-800"
+                    title="Cancel"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
                 <button
                   type="button"
-                  onClick={handleSaveDocName}
-                  className="text-emerald-400 hover:text-emerald-300 p-0.5 cursor-pointer"
+                  onClick={() => {
+                    setEditDocNameInput(customDocName);
+                    setIsEditingDocName(true);
+                  }}
+                  className="group inline-flex items-center gap-2 hover:bg-slate-800 px-2 py-0.5 rounded-lg text-xs font-semibold text-slate-200 hover:text-amber-300 transition-colors cursor-pointer"
+                  title="Click to rename final document filename"
                 >
-                  <Check className="w-3 h-3" />
+                  <span className="truncate max-w-[240px] font-mono">{customDocName}</span>
+                  <span className="inline-flex items-center gap-1 text-[10px] text-amber-400/90 group-hover:text-amber-300 bg-amber-400/10 px-1.5 py-0.5 rounded font-sans">
+                    <Edit3 className="w-2.5 h-2.5" /> Rename
+                  </span>
                 </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setIsEditingDocName(true)}
-                className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 hover:border-slate-700 cursor-pointer transition-colors max-w-xs"
-                title="Click to rename final document filename"
-              >
-                <span className="truncate">{customDocName}</span>
-                <Edit3 className="w-3 h-3 text-slate-500 group-hover:text-amber-400 shrink-0" />
-              </button>
-            )}
+              )}
+            </div>
           </div>
           <p className="text-xs text-slate-400 mt-1">
             Resolve conflicts, verify source citations, and finalize scrutiny answers before document export.
@@ -556,7 +627,7 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
           )}
           <button
             type="button"
-            onClick={handleSaveAsTemplateClick}
+            onClick={handleOpenSaveTemplateModal}
             disabled={isSavingTemplate}
             className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-amber-500/40 text-xs text-slate-300 hover:text-amber-300 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             title="Save this document structure to your reusable Template Library"
@@ -912,7 +983,12 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
                       {/* Context */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-1.5 mb-1">
-                          {origField?.is_table_cell ? (
+                          {origField?.is_question ? (
+                            <span className="px-1.5 py-0.2 rounded text-[10px] bg-sky-950/60 text-sky-300 border border-sky-800 flex items-center gap-1 font-semibold" title="Protected table question — preserved verbatim, will not be overwritten by answers">
+                              <FileQuestion className="w-2.5 h-2.5" />
+                              {origField.column_header ? `${origField.column_header} (Question)` : 'Table Question'}
+                            </span>
+                          ) : origField?.is_table_cell ? (
                             <span className="px-1.5 py-0.2 rounded text-[10px] bg-slate-800 text-slate-300 border border-slate-700 flex items-center gap-1">
                               <TableIcon className="w-2.5 h-2.5" />
                               {origField.column_header || 'Table Cell'}
@@ -1472,6 +1548,60 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
         <div className="flex items-center gap-2.5 flex-wrap w-full md:w-auto">
           {downloadUrl ? (
             <div className="flex items-center gap-2 flex-wrap">
+              {/* Ready to Download Document Name Pill with Rename */}
+              <div className="flex items-center gap-2 bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-2 text-xs">
+                <FileText className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span className="text-[11px] text-slate-400 font-medium shrink-0">Ready:</span>
+                {isEditingBottomDocName ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={editBottomDocNameInput}
+                      onChange={(e) => setEditBottomDocNameInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveDocName(editBottomDocNameInput);
+                        if (e.key === 'Escape') setIsEditingBottomDocName(false);
+                      }}
+                      className="bg-slate-950 border border-amber-400 rounded px-2 py-0.5 text-xs text-white focus:outline-none w-44 font-mono"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleSaveDocName(editBottomDocNameInput)}
+                      className="text-emerald-400 hover:text-emerald-300 p-0.5 cursor-pointer"
+                      title="Save"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingBottomDocName(false)}
+                      className="text-slate-400 hover:text-slate-200 p-0.5 cursor-pointer"
+                      title="Cancel"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-semibold text-white max-w-[180px] truncate font-mono" title={customDocName}>
+                      {customDocName}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditBottomDocNameInput(customDocName);
+                        setIsEditingBottomDocName(true);
+                      }}
+                      className="text-slate-400 hover:text-amber-400 p-0.5 rounded hover:bg-slate-800 transition-colors cursor-pointer"
+                      title="Rename document filename"
+                    >
+                      <Edit3 className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <a
                 href={`${downloadUrl}?format=docx`}
                 download
@@ -1516,6 +1646,60 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
             </div>
           ) : (
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+              {/* Output File Pill with Pre-Generation Rename */}
+              <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs">
+                <FileText className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span className="text-[11px] text-slate-400 font-medium shrink-0">Output File:</span>
+                {isEditingBottomDocName ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={editBottomDocNameInput}
+                      onChange={(e) => setEditBottomDocNameInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveDocName(editBottomDocNameInput);
+                        if (e.key === 'Escape') setIsEditingBottomDocName(false);
+                      }}
+                      className="bg-slate-950 border border-amber-400 rounded px-2 py-0.5 text-xs text-white focus:outline-none w-44 font-mono"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleSaveDocName(editBottomDocNameInput)}
+                      className="text-emerald-400 hover:text-emerald-300 p-0.5 cursor-pointer"
+                      title="Save"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingBottomDocName(false)}
+                      className="text-slate-400 hover:text-slate-200 p-0.5 cursor-pointer"
+                      title="Cancel"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-semibold text-slate-200 max-w-[170px] truncate font-mono" title={customDocName}>
+                      {customDocName}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditBottomDocNameInput(customDocName);
+                        setIsEditingBottomDocName(true);
+                      }}
+                      className="text-slate-400 hover:text-amber-400 p-0.5 rounded hover:bg-slate-800 transition-colors cursor-pointer"
+                      title="Click to rename output filename before generating"
+                    >
+                      <Edit3 className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs">
                 <span className="text-[11px] text-slate-400 font-medium shrink-0">Deed Format:</span>
                 <select
@@ -1578,6 +1762,91 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
           )}
         </div>
       </div>
+
+      {/* Save as Reusable Template Modal */}
+      {showSaveTemplateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden p-6 space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                  <BookmarkPlus className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Save as Reusable Template</h3>
+                  <p className="text-[11px] text-slate-400">Store template structure in library for future scrutinies</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSaveTemplateModal(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1.5">
+                  Template Name <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={templateSaveName}
+                  onChange={(e) => setTemplateSaveName(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-white font-medium focus:outline-none"
+                  placeholder="e.g. Canara Bank Legal Opinion Template.docx"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Auto-named based on bank & document type. You can rename it anytime.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1.5">
+                  Bank / Category Folder
+                </label>
+                <input
+                  type="text"
+                  value={templateSaveBank}
+                  onChange={(e) => setTemplateSaveBank(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-white font-medium focus:outline-none"
+                  placeholder="e.g. Canara Bank, SBI, or General"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowSaveTemplateModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSaveTemplate}
+                disabled={isSavingTemplate || !templateSaveName.trim()}
+                className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-lg shadow-amber-400/10 cursor-pointer disabled:opacity-50"
+              >
+                {isSavingTemplate ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></div>
+                    <span>Saving to Library...</span>
+                  </>
+                ) : (
+                  <>
+                    <BookmarkPlus className="w-3.5 h-3.5" />
+                    <span>Save to Template Library</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

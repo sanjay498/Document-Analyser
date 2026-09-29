@@ -15,9 +15,10 @@ import httpx
 logger = logging.getLogger("docfiller.gemini_service")
 
 GEMINI_MODELS = [
-    "gemini-3.6-flash",
-    "gemini-3.8-flash",
-    "gemini-3.5-flash",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
     "gemini-flash-latest",
 ]
 
@@ -29,7 +30,7 @@ class GeminiService:
     def __init__(self):
         self._api_key: Optional[str] = None
         self._base_url = "https://generativelanguage.googleapis.com/v1beta/models"
-        self._timeout_seconds = 35.0
+        self._timeout_seconds = 15.0
 
     @property
     def api_key(self) -> Optional[str]:
@@ -51,12 +52,21 @@ class GeminiService:
         if not key:
             raise ValueError("Google Gemini API is not configured on the server. Please contact administrator.")
 
-        url = f"{self._base_url}/{model}:generateContent?key={key}"
+        headers = {"Content-Type": "application/json"}
+        if key.startswith("AQ.") or key.startswith("ya29."):
+            url = f"{self._base_url}/{model}:generateContent"
+            headers["Authorization"] = f"Bearer {key}"
+        else:
+            url = f"{self._base_url}/{model}:generateContent?key={key}"
+
         payload = {
             "contents": contents,
             "generationConfig": {
                 "temperature": temperature,
-                "maxOutputTokens": 8192
+                "maxOutputTokens": 8192,
+                "thinkingConfig": {
+                    "thinkingBudget": 0
+                }
             }
         }
 
@@ -64,7 +74,7 @@ class GeminiService:
         for attempt in range(2):
             try:
                 async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
-                    resp = await client.post(url, json=payload)
+                    resp = await client.post(url, json=payload, headers=headers)
                     if resp.status_code == 200:
                         data = resp.json()
                         candidates = data.get("candidates", [])

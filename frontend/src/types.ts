@@ -25,6 +25,7 @@ export interface HighlightedField {
   location: FieldLocation;
   formatting: FieldFormatting;
   is_table_cell?: boolean;
+  is_question?: boolean;
   column_header?: string;
   row_context?: string;
   table_group_id?: string;
@@ -548,6 +549,16 @@ export interface ClientScrutinyHistory {
   sources_names: string[];
   final_document_ready: boolean;
   history_id?: string | null;
+  title_holder?: string | null;
+  property_extent?: string | null;
+  survey_numbers?: string | null;
+  sro_name?: string | null;
+  matter_title?: string | null;
+  preview_paragraphs?: string[];
+  preview_text?: string | null;
+  download_url_docx?: string;
+  download_url_pdf?: string;
+  download_url_txt?: string;
 }
 
 export interface ClientDetailResponse extends Client {

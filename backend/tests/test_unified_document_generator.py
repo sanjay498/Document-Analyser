@@ -184,3 +184,85 @@ def test_trace_no_price_and_certificate_clean():
     assert "Mayilsamy Kavundar" not in cleaned
     # Ensure redundant trace filler sentence is completely eliminated
     assert cleaned.count("The title holder Balashanmugam") == 0
+
+
+@pytest.mark.asyncio
+async def test_checklist_table_cells_never_missing():
+    """Ensure that all table checklist items (Borrower, Extent, Survey No, Location, Taxes, Boundaries) are 100% recognized with 0 missing."""
+    from backend.app.db.database import init_db
+    from docx.enum.text import WD_COLOR_INDEX
+    await init_db()
+
+    # Create a template with checklist table
+    doc = Document()
+    doc.add_heading("CHECKLIST LEGAL SCRUTINY", level=1)
+    tbl = doc.add_table(rows=1, cols=3)
+    tbl.style = 'Table Grid'
+    tbl.rows[0].cells[0].text = "Sr.No."
+    tbl.rows[0].cells[1].text = "Particulars"
+    tbl.rows[0].cells[2].text = "Compliance"
+
+    items = [
+        ("1.", "Name of the Branch", "Pollachi Branch"),
+        ("2.", "Name of the Borrower", "Dummy Borrower"),
+        ("3.", "Extent of area (in acres/sq.ft.)", "4.57 Acres"),
+        ("4.", "Survey no/Gut no/CST no.", "S.F.No.245/1B"),
+        ("5.", "Boundaries", "Details mentioned in separate sheet"),
+        ("6.", "Location", "Mannur Village"),
+        ("7.", "Taxes paid up to date", "Old tax receipt"),
+        ("8.", "Type of land", "Agricultural"),
+    ]
+    for sr, part, comp in items:
+        row = tbl.add_row().cells
+        row[0].text = sr
+        row[1].text = part
+        p = row[2].paragraphs[0]
+        r = p.add_run(comp)
+        r.font.highlight_color = WD_COLOR_INDEX.YELLOW
+
+    bio = BytesIO()
+    doc.save(bio)
+    template_bytes = bio.getvalue()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # 1. Create session
+        create_resp = await client.post("/api/sessions")
+        session_id = create_resp.json()["session_id"]
+
+        # 2. Upload template
+        await client.post(
+            f"/api/sessions/{session_id}/template",
+            files={"file": ("Checklist_Template.docx", template_bytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
+        )
+
+        # 3. Upload deed with Anandan / 711 / Kottur / 2223 Sq.ft. / Property tax receipt 5902
+        source_text = """
+        REGISTERED SALE DEED (Doc No. 750/1998 at SRO Anaimalai)
+        Vendor: Rathinasamy Gounder
+        Purchaser / Borrower: M.Anandan, S/o Mayilsamy Kavundar
+        Property: S.F.No. 711 (New S.F.No. 711/2B2), Kottur Village, Anaimalai Taluk.
+        Extent: 2223 Sq.ft. Residential House site.
+        Boundaries: North by Rathinasamy Property, South by Senniyappa Gounder House, East by 30 Feet Road, West by North-South Road.
+        Property Tax Receipt No. 5902 for year 2025-2026 paid up to date in name of M.Anandan.
+        """
+        await client.post(
+            f"/api/sessions/{session_id}/sources",
+            files={"files": ("Deed_Anandan.txt", BytesIO(source_text.encode("utf-8")), "text/plain")}
+        )
+
+        # 4. Extract
+        extract_resp = await client.post(f"/api/sessions/{session_id}/extract")
+        assert extract_resp.status_code == 200
+        ext_data = extract_resp.json()
+
+        # Check results
+        assert ext_data["not_found_count"] == 0
+        assert ext_data["extracted_count"] == len(items)
+        assert ext_data["total_fields"] == len(items)
+
+        res_by_part = {}
+        for r in ext_data["results"]:
+            assert r["status"] == "extracted"
+            assert r["value"] is not None
+            assert len(r["value"].strip()) > 0

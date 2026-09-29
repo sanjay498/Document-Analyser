@@ -15,6 +15,11 @@ from backend.app.db.database import get_db
 from backend.app.db.models import TemplateLibraryItem, TemplateGroup, GenerationSession, User
 from backend.app.core.auth import get_current_user_optional
 from backend.app.core.doc_processor import detect_yellow_highlights, detect_template_universal
+from backend.app.core.naming import (
+    detect_bank_and_doc_type,
+    generate_smart_template_name,
+    clean_filename
+)
 
 router = APIRouter(prefix="/api/templates", tags=["templates"])
 
@@ -213,24 +218,50 @@ async def save_template_to_library(
         if not sess or not sess.template_bytes:
             raise HTTPException(status_code=404, detail="Session template not found")
         
-        template_name = template_name or sess.template_filename or "Saved Template.docx"
-        template_bytes = sess.template_bytes
         fields_json = sess.fields_json or "[]"
         table_groups_json = sess.table_groups_json or "[]"
-        fields_count = len(json.loads(fields_json))
-        table_groups_count = len(json.loads(table_groups_json))
+        fields_list = json.loads(fields_json)
+        table_groups_list = json.loads(table_groups_json)
+        sample_text = " ".join([f.get("paragraph_context", "") for f in fields_list[:12]])
+        d_bank, d_type = detect_bank_and_doc_type(sample_text, sess.template_filename or "")
+        if not template_name or "_completed" in template_name.lower() or "muthulakshmi" in template_name.lower():
+            template_name = generate_smart_template_name(
+                bank=resolved_bank if resolved_bank != "General" else d_bank,
+                doc_type=d_type,
+                original_filename=sess.template_filename or ""
+            )
+        else:
+            template_name = template_name.strip()
+        if resolved_bank == "General" and d_bank:
+            resolved_bank = d_bank
+
+        template_bytes = sess.template_bytes
+        fields_count = len(fields_list)
+        table_groups_count = len(table_groups_list)
 
     elif file:
         allowed = (".docx", ".pptx", ".pdf")
         if not any(file.filename.lower().endswith(ext) for ext in allowed):
             raise HTTPException(status_code=400, detail="Only .docx, .pptx, and .pdf template files are supported.")
-        template_name = template_name or file.filename
         template_bytes = await file.read()
         doc, fields, table_groups = detect_template_universal(template_bytes, file.filename)
         fields_json = json.dumps([f.model_dump() for f in fields])
         table_groups_json = json.dumps([tg.model_dump() for tg in table_groups])
         fields_count = len(fields)
         table_groups_count = len(table_groups)
+
+        sample_text = " ".join([f.paragraph_context for f in fields[:12]])
+        d_bank, d_type = detect_bank_and_doc_type(sample_text, file.filename)
+        if not template_name or template_name == file.filename or template_name.lower().startswith("template"):
+            template_name = generate_smart_template_name(
+                bank=resolved_bank if resolved_bank != "General" else d_bank,
+                doc_type=d_type,
+                original_filename=file.filename
+            )
+        else:
+            template_name = template_name.strip()
+        if resolved_bank == "General" and d_bank:
+            resolved_bank = d_bank
 
     else:
         raise HTTPException(status_code=400, detail="Either file upload or session_id must be provided.")

@@ -45,14 +45,14 @@ ENV PYTHONUNBUFFERED=1 \
     DOCFILLER_DB_PATH=/app/data/docfiller.db
 
 # Directories for SQLite database volume mount and uploads
-RUN mkdir -p /app/data /app/uploads/qr && chown -R appuser:appuser /app
+RUN mkdir -p /app/data /app/uploads/qr /app/backend/app/uploads && chown -R appuser:appuser /app
 
 USER appuser
 
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=10s \
-  CMD curl -f http://localhost:8000/health || exit 1
+  CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
-# Launch Uvicorn production server
-CMD ["python", "-m", "uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+# Launch Uvicorn production server (supporting dynamic PORT for Render/cloud)
+CMD ["sh", "-c", "python -m uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 2"]

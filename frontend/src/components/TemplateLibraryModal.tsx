@@ -38,7 +38,21 @@ export const TemplateLibraryModal: React.FC<TemplateLibraryModalProps> = ({
   const [templates, setTemplates] = useState<TemplateSummary[]>([]);
   const [bankFolders, setBankFolders] = useState<string[]>([]);
   const [selectedBank, setSelectedBank] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>(() => {
+    try {
+      return localStorage.getItem('lex_library_template_search') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    try {
+      localStorage.setItem('lex_library_template_search', val);
+    } catch {}
+  };
   const [isLoading, setIsLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -88,15 +102,35 @@ export const TemplateLibraryModal: React.FC<TemplateLibraryModalProps> = ({
     return counts;
   }, [allBanks, templates]);
 
+  const DOCUMENT_CATEGORIES = [
+    { id: 'all', label: 'All Types' },
+    { id: 'opinion', label: 'Title Opinion / Scrutiny', keywords: ['opinion', 'scrutiny', 'search', 'report', 'clearance', 'title'] },
+    { id: 'agri', label: 'Agricultural Land', keywords: ['agri', 'agricultural', '7/12', 'farm', 'cultivation', 'land'] },
+    { id: 'housing', label: 'Housing & Mortgage', keywords: ['housing', 'mortgage', 'loan', 'residential', 'flat', 'apartment'] },
+    { id: 'commercial', label: 'Commercial & Lease', keywords: ['commercial', 'industrial', 'lease', 'office', 'shop', 'business'] },
+  ];
+
   const filteredTemplates = useMemo(() => {
     return templates.filter((t) => {
+      const q = searchQuery.toLowerCase().trim();
       const matchesSearch =
-        t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (t.bank_name && t.bank_name.toLowerCase().includes(searchQuery.toLowerCase()));
+        !q ||
+        t.name.toLowerCase().includes(q) ||
+        (t.bank_name && t.bank_name.toLowerCase().includes(q));
       const matchesBank = selectedBank === 'all' || (t.bank_name || 'General') === selectedBank;
-      return matchesSearch && matchesBank;
+
+      let matchesCategory = true;
+      if (selectedCategory !== 'all') {
+        const catDef = DOCUMENT_CATEGORIES.find((c) => c.id === selectedCategory);
+        if (catDef && catDef.keywords) {
+          const fullText = `${t.name} ${t.bank_name || ''}`.toLowerCase();
+          matchesCategory = catDef.keywords.some((kw) => fullText.includes(kw));
+        }
+      }
+
+      return matchesSearch && matchesBank && matchesCategory;
     });
-  }, [templates, searchQuery, selectedBank]);
+  }, [templates, searchQuery, selectedBank, selectedCategory]);
 
   if (!isOpen) return null;
 
@@ -284,17 +318,63 @@ export const TemplateLibraryModal: React.FC<TemplateLibraryModalProps> = ({
               })}
             </div>
 
-            {/* Quick Search */}
-            <div className="relative w-48 shrink-0 hidden md:block">
+            {/* Quick Search with explicit Clear button (Never auto-clears) */}
+            <div className="relative w-56 shrink-0">
               <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder="Search formats..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1 rounded-lg bg-slate-950 border border-slate-700 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="w-full pl-8 pr-7 py-1 rounded-lg bg-slate-950 border border-slate-700 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-400"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => handleSearchChange('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+                  title="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
+          </div>
+
+          {/* Category Filter Pills Bar */}
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-thin pt-2 border-t border-slate-800">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider shrink-0 mr-1">
+              Category:
+            </span>
+            {DOCUMENT_CATEGORIES.map((cat) => {
+              const isSelected = selectedCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCategory(cat.id)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-medium shrink-0 transition-all ${
+                    isSelected
+                      ? 'bg-sky-500 text-white font-semibold shadow-sm'
+                      : 'bg-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              );
+            })}
+            {(searchQuery || selectedBank !== 'all' || selectedCategory !== 'all') && (
+              <button
+                type="button"
+                onClick={() => {
+                  handleSearchChange('');
+                  setSelectedBank('all');
+                  setSelectedCategory('all');
+                }}
+                className="text-[11px] text-amber-400 hover:text-amber-300 underline shrink-0 ml-2"
+              >
+                Reset
+              </button>
+            )}
           </div>
         </div>
 
@@ -344,7 +424,7 @@ export const TemplateLibraryModal: React.FC<TemplateLibraryModalProps> = ({
                       </div>
                     ) : (
                       <div className="flex items-center gap-2">
-                        <h4 className="text-xs font-bold text-white truncate max-w-sm" title={t.name}>
+                        <h4 className="text-xs sm:text-sm font-bold text-white flex-1 min-w-0 break-words" title={t.name}>
                           {t.name}
                         </h4>
                         <button

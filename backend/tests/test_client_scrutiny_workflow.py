@@ -281,3 +281,133 @@ async def test_multiple_scrutinies_per_client():
         sess_ids = [s["session_id"] for s in detail["scrutinies"]]
         assert res_s1.json()["session_id"] in sess_ids
         assert res_s2.json()["session_id"] in sess_ids
+
+
+@pytest.mark.asyncio
+async def test_client_document_preview_and_download():
+    """
+    Verifies that clicking/inspecting a client displays generated document particulars,
+    live text preview, and allows direct downloads (docx, pdf, txt).
+    """
+    await init_db()
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # 1. Create client
+        res_c = await client.post("/api/clients", json={
+            "name": "K. Muthulakshmi",
+            "phone": f"98{uuid.uuid4().hex[:8]}",
+            "email": f"muthu_{uuid.uuid4().hex[:6]}@lawfirm.in",
+            "title": "Title Scrutiny for S.F. No. 245/1B"
+        })
+        client_id = res_c.json()["id"]
+
+        # 2. Get template
+        res_tpls = await client.get("/api/templates")
+        tpl_id = res_tpls.json()[0]["id"]
+
+        # 3. Start scrutiny
+        res_start = await client.post(f"/api/clients/{client_id}/start-scrutiny", json={"template_id": tpl_id})
+        session_id = res_start.json()["session_id"]
+
+        # 4. Upload source doc
+        source_files = [
+            ("files", ("Deed.txt", b"Sale Deed executed in favour of K. Muthulakshmi for S.F. No. 245/1B measuring 4.57 Acres at SRO Pollachi.", "text/plain"))
+        ]
+        await client.post(f"/api/sessions/{session_id}/sources", files=source_files)
+
+        # 5. Export document
+        export_payload = {
+            "field_values": {"p14_r0_0": "Verified title trace for K. Muthulakshmi"},
+            "table_group_records": {},
+            "clear_highlight": True
+        }
+        await client.post(f"/api/sessions/{session_id}/export", json=export_payload)
+
+        # 6. Retrieve client detail and verify document display particulars
+        res_detail = await client.get(f"/api/clients/{client_id}")
+        assert res_detail.status_code == 200
+        detail = res_detail.json()
+        assert len(detail["scrutinies"]) == 1
+        sc = detail["scrutinies"][0]
+        assert sc["final_document_ready"] is True
+        assert len(sc["preview_paragraphs"]) > 0
+        assert sc["preview_text"] is not None
+        assert sc["download_url_docx"] == f"/api/sessions/{session_id}/download?format=docx"
+        assert sc["download_url_pdf"] == f"/api/sessions/{session_id}/download?format=pdf"
+        assert sc["download_url_txt"] == f"/api/sessions/{session_id}/download?format=txt"
+
+        # 7. Test direct client document downloads
+        # DOCX
+        res_dl_docx = await client.get(f"/api/clients/{client_id}/documents/{session_id}/download?format=docx")
+        assert res_dl_docx.status_code == 200
+        assert "wordprocessingml" in res_dl_docx.headers.get("content-type", "")
+        assert len(res_dl_docx.content) > 1000
+
+        # PDF
+        res_dl_pdf = await client.get(f"/api/clients/{client_id}/documents/{session_id}/download?format=pdf")
+        assert res_dl_pdf.status_code == 200
+        assert "pdf" in res_dl_pdf.headers.get("content-type", "")
+        assert len(res_dl_pdf.content) > 500
+
+        # TXT
+        res_dl_txt = await client.get(f"/api/clients/{client_id}/documents/{session_id}/download?format=txt")
+        assert res_dl_txt.status_code == 200
+        assert "text" in res_dl_txt.headers.get("content-type", "")
+        assert len(res_dl_txt.content) > 50
+
+
+@pytest.mark.asyncio
+async def test_delete_client_workflow():
+    """
+    Verifies that deleting a client removes them from the client list,
+    dissociates their sessions without crashing, and returns 404 on subsequent lookups.
+    """
+    await init_db()
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # 1. Create client
+        res_c = await client.post("/api/clients", json={
+            "name": "Temporary Client",
+            "phone": f"97{uuid.uuid4().hex[:8]}",
+            "email": f"temp_{uuid.uuid4().hex[:6]}@example.com",
+            "title": "Title Search for Disposal Property"
+        })
+        assert res_c.status_code == 200
+        client_id = res_c.json()["id"]
+
+        # 2. Get template & start scrutiny
+        res_tpls = await client.get("/api/templates")
+        tpl_id = res_tpls.json()[0]["id"]
+        res_start = await client.post(f"/api/clients/{client_id}/start-scrutiny", json={"template_id": tpl_id})
+        session_id = res_start.json()["session_id"]
+
+        # 3. Verify client detail exists
+        res_detail = await client.get(f"/api/clients/{client_id}")
+        assert res_detail.status_code == 200
+        assert res_detail.json()["id"] == client_id
+
+        # 4. Delete client
+        res_del = await client.delete(f"/api/clients/{client_id}")
+        assert res_del.status_code == 200
+        del_data = res_del.json()
+        assert del_data["success"] is True
+        assert del_data["client_id"] == client_id
+        assert "deleted successfully" in del_data["message"]
+
+        # 5. Verify client no longer exists
+        res_get_deleted = await client.get(f"/api/clients/{client_id}")
+        assert res_get_deleted.status_code == 404
+
+        # 6. Verify client is not in list
+        res_list = await client.get("/api/clients")
+        client_ids = [c["id"] for c in res_list.json()]
+        assert client_id not in client_ids
+
+        # 7. Verify session is preserved with nullified client_id
+        res_sess = await client.get(f"/api/sessions/{session_id}")
+        assert res_sess.status_code == 200
+        assert res_sess.json().get("client_id") is None
+
+        # 8. Deleting again returns 404
+        res_del_again = await client.delete(f"/api/clients/{client_id}")
+        assert res_del_again.status_code == 404
