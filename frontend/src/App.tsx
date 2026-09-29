@@ -299,10 +299,21 @@ export const App: React.FC = () => {
 
   // Upload Template
   const handleTemplateUpload = async (file: File) => {
-    if (!sessionId) return;
+    let currentSessionId = sessionId;
+    if (!currentSessionId) {
+      try {
+        const sess = await createSession();
+        currentSessionId = sess.session_id;
+        setSessionId(currentSessionId);
+        localStorage.setItem('lex_title_session_id', currentSessionId);
+      } catch {
+        showToast('Connecting to backend... Please try again in a few seconds.', 'error');
+        return;
+      }
+    }
     setIsTemplateLoading(true);
     try {
-      const res = await uploadTemplate(sessionId, file);
+      const res = await uploadTemplate(currentSessionId, file);
       setTemplateFilename(res.template_filename);
       setFields(res.fields);
       setTableGroups(res.table_groups || []);
@@ -343,10 +354,21 @@ export const App: React.FC = () => {
 
   // Upload Sources
   const handleSourcesUpload = async (files: File[]) => {
-    if (!sessionId) return;
+    let currentSessionId = sessionId;
+    if (!currentSessionId) {
+      try {
+        const sess = await createSession();
+        currentSessionId = sess.session_id;
+        setSessionId(currentSessionId);
+        localStorage.setItem('lex_title_session_id', currentSessionId);
+      } catch {
+        showToast('Connecting to backend... Please try again in a few seconds.', 'error');
+        return;
+      }
+    }
     setIsSourcesLoading(true);
     try {
-      const res = await uploadSources(sessionId, files);
+      const res = await uploadSources(currentSessionId, files);
       setSources(res.sources);
       const ocrCount = res.sources.filter((s) => s.is_scanned_ocr).length;
       showToast(

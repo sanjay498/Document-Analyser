@@ -293,14 +293,24 @@ export async function uploadTemplate(sessionId: string, file: File): Promise<{
   const formData = new FormData();
   formData.append('file', file);
 
-  const res = await fetch(`${API_BASE}/sessions/${sessionId}/template`, {
-    method: 'POST',
-    headers: getAuthHeaders(),
-    body: formData,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/sessions/${sessionId}/template`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: formData,
+    });
+  } catch (netErr: any) {
+    throw new Error('Cannot connect to backend server. Render service may be waking up (please wait 10-15 seconds and retry) or check backend status in the top bar.');
+  }
+
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({ detail: 'Failed to upload template' }));
-    throw new Error(errorData.detail || 'Failed to upload template');
+    let detail = 'Failed to upload template';
+    try {
+      const errorData = await res.json();
+      detail = errorData.detail || errorData.message || detail;
+    } catch {}
+    throw new Error(detail);
   }
   return res.json();
 }
@@ -315,14 +325,24 @@ export async function uploadSources(sessionId: string, files: File[]): Promise<{
     formData.append('files', f);
   }
 
-  const res = await fetch(`${API_BASE}/sessions/${sessionId}/sources`, {
-    method: 'POST',
-    headers: getAuthHeaders(),
-    body: formData,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/sessions/${sessionId}/sources`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: formData,
+    });
+  } catch (netErr: any) {
+    throw new Error('Cannot connect to backend server. Render service may be waking up (please wait 10-15 seconds and retry) or check backend status in the top bar.');
+  }
+
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({ detail: 'Failed to upload source documents' }));
-    throw new Error(errorData.detail || 'Failed to upload source documents');
+    let detail = 'Failed to upload source documents';
+    try {
+      const errorData = await res.json();
+      detail = errorData.detail || errorData.message || detail;
+    } catch {}
+    throw new Error(detail);
   }
   return res.json();
 }
