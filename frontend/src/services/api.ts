@@ -40,13 +40,16 @@ import type {
   StartScrutinyResponse,
 } from '../types';
 
-const API_BASE = '/api';
+const BACKEND_BASE = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL)
+  ? (import.meta.env.VITE_API_URL as string).replace(/\/$/, '')
+  : '';
+const API_BASE = `${BACKEND_BASE}/api`;
 
 export async function getHealthStatus(): Promise<Record<string, any>> {
   const res = await fetch(`${API_BASE}/health`);
   if (!res.ok) {
     // fallback to /health
-    const fallback = await fetch('/health');
+    const fallback = await fetch(`${BACKEND_BASE || ''}/health`);
     if (!fallback.ok) throw new Error('Health check failed');
     return fallback.json();
   }
@@ -56,7 +59,7 @@ export async function getHealthStatus(): Promise<Record<string, any>> {
 export async function getSystemMetrics(): Promise<SystemMetrics> {
   const res = await fetch(`${API_BASE}/metrics`);
   if (!res.ok) {
-    const fallback = await fetch('/metrics');
+    const fallback = await fetch(`${BACKEND_BASE || ''}/metrics`);
     if (!fallback.ok) throw new Error('Failed to fetch system metrics');
     return fallback.json();
   }
