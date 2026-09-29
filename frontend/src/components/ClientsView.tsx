@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import type { Client, ClientDetailResponse } from '../types';
 import { getClients, getClientDetail, createClient, checkExistingClient, deleteClient } from '../services/api';
+import { LOAN_NATURE_OPTIONS, DEFAULT_LOAN_NATURE, getLoanNatureBadgeClass } from '../utils/loanModels';
 
 interface ClientsViewProps {
   onStartScrutinyForClient: (client: Client) => void;
@@ -58,6 +59,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
   const [newPhone, setNewPhone] = useState<string>('');
   const [newEmail, setNewEmail] = useState<string>('');
   const [newTitle, setNewTitle] = useState<string>('');
+  const [newNatureOfLoan, setNewNatureOfLoan] = useState<string>(DEFAULT_LOAN_NATURE);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [addError, setAddError] = useState<string | null>(null);
 
@@ -154,6 +156,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
         phone: newPhone.trim(),
         email: newEmail.trim(),
         title: newTitle.trim(),
+        nature_of_loan: newNatureOfLoan,
       });
 
       showToast(`Client "${created.name}" created successfully`, 'success');
@@ -163,6 +166,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
       setNewPhone('');
       setNewEmail('');
       setNewTitle('');
+      setNewNatureOfLoan(DEFAULT_LOAN_NATURE);
       fetchClients();
     } catch (err: any) {
       setAddError(err.message || 'Failed to create client');
@@ -298,6 +302,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                   <th className="py-3 px-4">Phone</th>
                   <th className="py-3 px-4">Email</th>
                   <th className="py-3 px-4">Title / Matter</th>
+                  <th className="py-3 px-4">Nature of Loan</th>
                   <th className="py-3 px-4">Document Status</th>
                   <th className="py-3 px-4">Created</th>
                   <th className="py-3 px-4 text-right">Actions</th>
@@ -342,6 +347,11 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                     <td className="py-3.5 px-4">
                       <span className="inline-block px-2.5 py-1 rounded-md bg-slate-800/80 text-slate-200 border border-slate-700 text-xs font-medium max-w-[240px] truncate" title={c.title}>
                         {c.title}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-medium border ${getLoanNatureBadgeClass(c.nature_of_loan)}`}>
+                        {c.nature_of_loan || DEFAULT_LOAN_NATURE}
                       </span>
                     </td>
                     <td className="py-3.5 px-4 whitespace-nowrap">
@@ -422,6 +432,9 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                     <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-semibold flex items-center gap-1">
                       <ShieldCheck className="w-3 h-3" />
                       Client Profile
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${getLoanNatureBadgeClass(selectedClient.nature_of_loan)}`}>
+                      {selectedClient.nature_of_loan || DEFAULT_LOAN_NATURE}
                     </span>
                     <span className="text-[11px] text-slate-500 font-mono">
                       ID: {selectedClient.id.slice(0, 8)}...
@@ -857,6 +870,9 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                     <p className="text-slate-400">Phone: {existingMatch.phone}</p>
                     <p className="text-slate-400">Email: {existingMatch.email}</p>
                     <p className="text-amber-300">Title: {existingMatch.title}</p>
+                    <p className="text-slate-400">
+                      Nature of Loan: <span className="text-emerald-300">{existingMatch.nature_of_loan || DEFAULT_LOAN_NATURE}</span>
+                    </p>
                   </div>
                 </div>
 
@@ -942,6 +958,21 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                     onChange={(e) => setNewTitle(e.target.value)}
                     className="w-full bg-[#070a13] border border-slate-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500/60"
                   />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-slate-300">Nature of Loan / Facility *</label>
+                  <select
+                    value={newNatureOfLoan}
+                    onChange={(e) => setNewNatureOfLoan(e.target.value)}
+                    className="w-full bg-[#070a13] border border-slate-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500/60 cursor-pointer"
+                  >
+                    {LOAN_NATURE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">
+                        {opt.label} ({opt.description})
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2.5">

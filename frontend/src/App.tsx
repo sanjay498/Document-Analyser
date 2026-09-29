@@ -414,7 +414,8 @@ export const App: React.FC = () => {
     clearHighlight: boolean,
     chosenDeedModel?: string,
     updatedQaAnswers?: QuestionAnswer[],
-    docCustomName?: string
+    docCustomName?: string,
+    natureOfLoan?: string
   ) => {
     if (!sessionId) return;
     setIsExporting(true);
@@ -427,7 +428,8 @@ export const App: React.FC = () => {
         clearHighlight,
         modelToUse,
         updatedQaAnswers || qaAnswers,
-        docCustomName
+        docCustomName,
+        natureOfLoan
       );
       setDownloadUrl(getDownloadUrl(sessionId));
 
@@ -588,6 +590,7 @@ export const App: React.FC = () => {
                 sessionId={sessionId}
                 templateFilename={templateFilename}
                 preferredDeedModel={preferredDeedModel}
+                initialNatureOfLoan={activeClient?.nature_of_loan}
                 onApplyDeedModel={(m) => setPreferredDeedModel(m)}
                 isExporting={isExporting}
                 onExport={handleExport}

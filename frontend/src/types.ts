@@ -326,6 +326,7 @@ export interface HistorySummary {
   sources_summary: string[];
   resolved_fields_count: number;
   download_url: string;
+  nature_of_loan?: string;
 }
 
 export interface HistoryDetail {
@@ -336,6 +337,7 @@ export interface HistoryDetail {
   field_values: Record<string, string | null>;
   table_records: Record<string, Array<Record<string, any>>>;
   download_url: string;
+  nature_of_loan?: string;
 }
 
 export interface BatchItemStatus {
@@ -362,6 +364,7 @@ export interface SessionState {
   session_id: string;
   status: 'created' | 'template_loaded' | 'sources_loaded' | 'extracted' | 'completed';
   template_filename?: string;
+  nature_of_loan?: string;
   fields: HighlightedField[];
   table_groups: DynamicTableGroup[];
   sources: ExtractedSourceDocument[];
@@ -535,6 +538,7 @@ export interface Client {
   phone: string;
   email: string;
   title: string;
+  nature_of_loan?: string;
   created_at: string;
   updated_at: string;
   scrutiny_count: number;
@@ -549,6 +553,7 @@ export interface ClientScrutinyHistory {
   sources_names: string[];
   final_document_ready: boolean;
   history_id?: string | null;
+  nature_of_loan?: string;
   title_holder?: string | null;
   property_extent?: string | null;
   survey_numbers?: string | null;
@@ -570,6 +575,7 @@ export interface CreateClientRequest {
   phone: string;
   email: string;
   title: string;
+  nature_of_loan?: string;
 }
 
 export interface CheckExistingClientResponse {
@@ -583,6 +589,7 @@ export interface StartScrutinyResponse {
   template_id: string;
   template_filename: string;
   bank_name: string;
+  nature_of_loan?: string;
   fields_count: number;
   table_groups_count: number;
   fields: HighlightedField[];

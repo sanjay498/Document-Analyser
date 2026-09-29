@@ -30,6 +30,7 @@ import {
   sanitizeFilename,
   detectBankAndDocType
 } from '../utils/naming';
+import { LOAN_NATURE_OPTIONS, DEFAULT_LOAN_NATURE } from '../utils/loanModels';
 import type {
   HighlightedField,
   FieldExtractionResult,
@@ -49,6 +50,7 @@ interface ReviewTableProps {
   sessionId?: string;
   templateFilename?: string;
   preferredDeedModel?: string;
+  initialNatureOfLoan?: string;
   isExporting: boolean;
   onExport: (
     fieldValues: Record<string, string | null>,
@@ -56,7 +58,8 @@ interface ReviewTableProps {
     clearHighlight: boolean,
     preferredDeedModel?: string,
     qaAnswers?: QuestionAnswer[],
-    docCustomName?: string
+    docCustomName?: string,
+    natureOfLoan?: string
   ) => void;
   onApplyDeedModel?: (modelId: string) => Promise<void> | void;
   onViewSource?: (
@@ -81,6 +84,7 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
   sessionId,
   templateFilename,
   preferredDeedModel = 'normal_partition',
+  initialNatureOfLoan,
   isExporting,
   onExport,
   onApplyDeedModel,
@@ -96,6 +100,17 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
   const [activeReviewTab, setActiveReviewTab] = useState<'fields' | 'qa'>(
     results.length > 0 ? 'fields' : 'qa'
   );
+  // Store nature of loan model state
+  const [natureOfLoan, setNatureOfLoan] = useState<string>(
+    initialNatureOfLoan || DEFAULT_LOAN_NATURE
+  );
+
+  useEffect(() => {
+    if (initialNatureOfLoan) {
+      setNatureOfLoan(initialNatureOfLoan);
+    }
+  }, [initialNatureOfLoan]);
+
   // Store user-resolved field values: field_id -> string
   const [resolvedValues, setResolvedValues] = useState<Record<string, string>>({});
   // Store fields marked explicitly as "leave blank / keep original"
@@ -490,7 +505,7 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
       }
     });
 
-    onExport(payloadFields, dynamicTables, clearHighlight, selectedDeedModel, localQaAnswers, customDocName);
+    onExport(payloadFields, dynamicTables, clearHighlight, selectedDeedModel, localQaAnswers, customDocName, natureOfLoan);
   };
 
   // Filtering
@@ -1602,6 +1617,22 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
                 )}
               </div>
 
+              {/* Nature of Loan Pill */}
+              <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs">
+                <span className="text-[11px] text-slate-400 font-medium shrink-0">Nature of Loan:</span>
+                <select
+                  value={natureOfLoan}
+                  onChange={(e) => setNatureOfLoan(e.target.value)}
+                  className="bg-transparent border-none text-slate-200 text-xs font-medium focus:outline-none cursor-pointer max-w-[190px]"
+                >
+                  {LOAN_NATURE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value} className="bg-slate-900 text-slate-100">
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <a
                 href={`${downloadUrl}?format=docx`}
                 download
@@ -1698,6 +1729,22 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
                     </button>
                   </div>
                 )}
+              </div>
+
+              {/* Nature of Loan Pill Before Generating */}
+              <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs">
+                <span className="text-[11px] text-slate-400 font-medium shrink-0">Nature of Loan:</span>
+                <select
+                  value={natureOfLoan}
+                  onChange={(e) => setNatureOfLoan(e.target.value)}
+                  className="bg-transparent border-none text-slate-200 text-xs font-medium focus:outline-none cursor-pointer max-w-[210px]"
+                >
+                  {LOAN_NATURE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value} className="bg-slate-900 text-slate-100">
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs">

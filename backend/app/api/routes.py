@@ -73,6 +73,11 @@ from backend.app.core.naming import (
     clean_filename,
     clean_party_for_filename
 )
+from backend.app.core.loan_models import (
+    normalize_loan_nature,
+    DEFAULT_LOAN_NATURE,
+    LOAN_NATURE_OPTIONS
+)
 
 router = APIRouter(prefix="/api")
 
@@ -126,6 +131,7 @@ class ExtractionResponse(BaseModel):
     questions: List[TemplateQuestion] = Field(default_factory=list)
     doc_custom_name: Optional[str] = None
     suggested_template_name: Optional[str] = None
+    nature_of_loan: Optional[str] = DEFAULT_LOAN_NATURE
 
 
 class ExportRequest(BaseModel):
@@ -136,6 +142,7 @@ class ExportRequest(BaseModel):
     preferred_deed_model: Optional[str] = None
     qa_answers: Optional[List[Dict[str, Any]]] = None
     doc_custom_name: Optional[str] = None
+    nature_of_loan: Optional[str] = None
 
 
 class RenameDocumentRequest(BaseModel):
@@ -191,6 +198,7 @@ async def get_session(session_id: str, db: AsyncSession = Depends(get_db)):
         "session_id": session.id,
         "client_id": session.client_id,
         "template_id": session.template_id,
+        "nature_of_loan": session.nature_of_loan or DEFAULT_LOAN_NATURE,
         "status": session.status,
         "template_filename": session.template_filename,
         "fields": json.loads(session.fields_json or "[]"),
@@ -462,7 +470,8 @@ async def extract_field_values(
         qa_answers=qa_answers,
         questions=questions,
         doc_custom_name=session.doc_custom_name,
-        suggested_template_name=suggested_tpl_name
+        suggested_template_name=suggested_tpl_name,
+        nature_of_loan=session.nature_of_loan or DEFAULT_LOAN_NATURE
     )
 
 
@@ -487,6 +496,18 @@ async def export_final_document(
     fields = [HighlightedField(**f) for f in raw_fields]
 
     field_values = dict(payload.field_values)
+
+    # Determine active nature of loan
+    active_loan_nature = normalize_loan_nature(payload.nature_of_loan or session.nature_of_loan or DEFAULT_LOAN_NATURE)
+    session.nature_of_loan = active_loan_nature
+
+    # Auto-populate loan nature into matching template fields if not overridden by user
+    for f in fields:
+        orig = f.original_text.lower()
+        ctx_m = f.context_with_marker.lower()
+        if any(k in orig or k in ctx_m for k in ["nature of loan", "nature of facility", "type of loan", "facility type", "loan facility", "purpose of loan", "loan model", "credit facility"]):
+            if f.field_id not in field_values or not field_values[f.field_id]:
+                field_values[f.field_id] = active_loan_nature
 
     # 1. Build context from source documents and field values
     ctx = {}
@@ -683,6 +704,7 @@ async def export_final_document(
         user_id=user_id,
         session_id=session.id,
         client_id=session.client_id,
+        nature_of_loan=active_loan_nature,
         template_filename=session.doc_custom_name or session.template_filename or "generated_document.docx",
         sources_summary_json=session.sources_json or "[]",
         field_values_json=json.dumps(payload.field_values),
@@ -699,6 +721,7 @@ async def export_final_document(
         "message": "Document generated successfully",
         "download_url": f"/api/sessions/{session_id}/download",
         "history_id": history_id,
+        "nature_of_loan": active_loan_nature,
         "deducted_fee": deducted_fee,
         "wallet_balance": float(current_user.wallet_balance) if current_user else None
     }

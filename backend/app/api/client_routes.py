@@ -31,6 +31,12 @@ from backend.app.core.doc_processor import (
     convert_docx_to_pdf_bytes,
     convert_docx_to_txt_bytes
 )
+from backend.app.core.loan_models import (
+    LOAN_NATURE_OPTIONS,
+    LOAN_NATURE_METADATA,
+    DEFAULT_LOAN_NATURE,
+    normalize_loan_nature
+)
 
 router = APIRouter(prefix="/api/clients", tags=["clients"])
 
@@ -43,6 +49,7 @@ class CreateClientRequest(BaseModel):
     phone: str = Field(..., description="Phone Number")
     email: str = Field(..., description="Email Address")
     title: str = Field(..., description="Scrutiny Matter Reference / Property Title")
+    nature_of_loan: Optional[str] = Field(default=DEFAULT_LOAN_NATURE, description="Nature of Loan / Facility Classification")
 
 
 class CheckExistingClientRequest(BaseModel):
@@ -56,6 +63,7 @@ class ClientResponse(BaseModel):
     phone: str
     email: str
     title: str
+    nature_of_loan: str = DEFAULT_LOAN_NATURE
     created_at: str
     updated_at: str
     scrutiny_count: int = 0
@@ -81,6 +89,7 @@ class ClientScrutinyHistory(BaseModel):
     sources_names: List[str] = Field(default_factory=list)
     final_document_ready: bool = False
     history_id: Optional[str] = None
+    nature_of_loan: Optional[str] = DEFAULT_LOAN_NATURE
     title_holder: Optional[str] = None
     property_extent: Optional[str] = None
     survey_numbers: Optional[str] = None
@@ -99,6 +108,7 @@ class ClientDetailResponse(BaseModel):
     phone: str
     email: str
     title: str
+    nature_of_loan: str = DEFAULT_LOAN_NATURE
     created_at: str
     updated_at: str
     scrutiny_count: int = 0
@@ -107,6 +117,7 @@ class ClientDetailResponse(BaseModel):
 
 class StartScrutinyRequest(BaseModel):
     template_id: str
+    nature_of_loan: Optional[str] = None
 
 
 class StartScrutinyResponse(BaseModel):
@@ -115,6 +126,7 @@ class StartScrutinyResponse(BaseModel):
     template_id: str
     template_filename: str
     bank_name: str = "General"
+    nature_of_loan: str = DEFAULT_LOAN_NATURE
     fields_count: int
     table_groups_count: int
     fields: list
@@ -125,11 +137,12 @@ class StartScrutinyResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-def _validate_client_input(name: str, phone: str, email: str, title: str):
+def _validate_client_input(name: str, phone: str, email: str, title: str, nature_of_loan: Optional[str] = None):
     clean_name = name.strip() if name else ""
     clean_phone = phone.strip() if phone else ""
     clean_email = email.strip().lower() if email else ""
     clean_title = title.strip() if title else ""
+    clean_nature = normalize_loan_nature(nature_of_loan or DEFAULT_LOAN_NATURE)
 
     if not clean_name:
         raise HTTPException(status_code=400, detail="Client Name is required")
@@ -140,12 +153,27 @@ def _validate_client_input(name: str, phone: str, email: str, title: str):
     if not clean_title:
         raise HTTPException(status_code=400, detail="Title / Property Matter reference is required")
 
-    return clean_name, clean_phone, clean_email, clean_title
+    return clean_name, clean_phone, clean_email, clean_title, clean_nature
 
 
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
+@router.get("/loan-models")
+async def get_loan_models():
+    """
+    Returns the list of available Nature of Loan classifications and their metadata.
+    """
+    return {
+        "default": DEFAULT_LOAN_NATURE,
+        "options": [
+            {
+                "value": opt,
+                "label": opt,
+                **LOAN_NATURE_METADATA.get(opt, {})
+            }
+            for opt in LOAN_NATURE_OPTIONS
+        ]
+    }
+
+
 @router.post("/check-existing", response_model=CheckExistingClientResponse)
 async def check_existing_client(
     payload: CheckExistingClientRequest,
@@ -186,6 +214,7 @@ async def check_existing_client(
             phone=matched.phone,
             email=matched.email,
             title=matched.title,
+            nature_of_loan=matched.nature_of_loan or DEFAULT_LOAN_NATURE,
             created_at=matched.created_at.isoformat() if matched.created_at else "",
             updated_at=matched.updated_at.isoformat() if matched.updated_at else "",
             scrutiny_count=scrutiny_c
@@ -201,10 +230,10 @@ async def create_client(
 ):
     """
     Creates a new client in the backend database.
-    Permanently stores Client ID, Name, Phone, Email, Title, and Timestamps.
+    Permanently stores Client ID, Name, Phone, Email, Title, Nature of Loan, and Timestamps.
     """
-    clean_name, clean_phone, clean_email, clean_title = _validate_client_input(
-        payload.name, payload.phone, payload.email, payload.title
+    clean_name, clean_phone, clean_email, clean_title, clean_nature = _validate_client_input(
+        payload.name, payload.phone, payload.email, payload.title, payload.nature_of_loan
     )
 
     client_id = str(uuid.uuid4())
@@ -214,7 +243,8 @@ async def create_client(
         name=clean_name,
         phone=clean_phone,
         email=clean_email,
-        title=clean_title
+        title=clean_title,
+        nature_of_loan=clean_nature
     )
     db.add(client)
     await db.commit()
@@ -226,6 +256,7 @@ async def create_client(
         phone=client.phone,
         email=client.email,
         title=client.title,
+        nature_of_loan=client.nature_of_loan or DEFAULT_LOAN_NATURE,
         created_at=client.created_at.isoformat() if client.created_at else "",
         updated_at=client.updated_at.isoformat() if client.updated_at else "",
         scrutiny_count=0
@@ -282,6 +313,7 @@ async def list_clients(
             phone=c.phone,
             email=c.email,
             title=c.title,
+            nature_of_loan=c.nature_of_loan or DEFAULT_LOAN_NATURE,
             created_at=c.created_at.isoformat() if c.created_at else "",
             updated_at=c.updated_at.isoformat() if c.updated_at else "",
             scrutiny_count=counts_map.get(c.id, 0)
@@ -420,6 +452,7 @@ async def get_client_detail(
             sources_names=src_names,
             final_document_ready=bool(s.final_docx_bytes is not None),
             history_id=hist_map.get(s.id),
+            nature_of_loan=s.nature_of_loan or client.nature_of_loan or DEFAULT_LOAN_NATURE,
             title_holder=title_holder or client.name,
             property_extent=property_extent,
             survey_numbers=survey_numbers,
@@ -438,6 +471,7 @@ async def get_client_detail(
         phone=client.phone,
         email=client.email,
         title=client.title,
+        nature_of_loan=client.nature_of_loan or DEFAULT_LOAN_NATURE,
         created_at=client.created_at.isoformat() if client.created_at else "",
         updated_at=client.updated_at.isoformat() if client.updated_at else "",
         scrutiny_count=len(scrutinies),
@@ -554,12 +588,14 @@ async def start_scrutiny_for_client(
     if not template_item:
         raise HTTPException(status_code=404, detail="Template not found in library")
 
+    chosen_nature = normalize_loan_nature(payload.nature_of_loan or client.nature_of_loan or DEFAULT_LOAN_NATURE)
     session_id = str(uuid.uuid4())
     session = GenerationSession(
         id=session_id,
         user_id=current_user.id if current_user else client.user_id,
         client_id=client.id,
         template_id=template_item.id,
+        nature_of_loan=chosen_nature,
         template_filename=template_item.name,
         template_bytes=template_item.template_bytes,
         status="template_loaded",
@@ -581,6 +617,7 @@ async def start_scrutiny_for_client(
         template_id=template_item.id,
         template_filename=template_item.name,
         bank_name=template_item.bank_name or "General",
+        nature_of_loan=chosen_nature,
         fields_count=template_item.fields_count,
         table_groups_count=template_item.table_groups_count,
         fields=fields_parsed,
@@ -591,6 +628,7 @@ async def start_scrutiny_for_client(
             phone=client.phone,
             email=client.email,
             title=client.title,
+            nature_of_loan=client.nature_of_loan or DEFAULT_LOAN_NATURE,
             created_at=client.created_at.isoformat() if client.created_at else "",
             updated_at=client.updated_at.isoformat() if client.updated_at else "",
             scrutiny_count=1

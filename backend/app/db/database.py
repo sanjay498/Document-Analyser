@@ -108,10 +108,25 @@ async def init_db():
                 "ALTER TABLE generation_sessions ADD COLUMN doc_custom_name VARCHAR(255)",
                 "ALTER TABLE generation_sessions ADD COLUMN questions_json TEXT",
                 "ALTER TABLE generation_sessions ADD COLUMN qa_answers_json TEXT",
+                "ALTER TABLE generation_sessions ADD COLUMN nature_of_loan VARCHAR(100) DEFAULT 'House Model'",
+                "ALTER TABLE clients ADD COLUMN nature_of_loan VARCHAR(100) DEFAULT 'House Model'",
                 "ALTER TABLE template_qa_sessions ADD COLUMN client_id VARCHAR(64)",
                 "ALTER TABLE document_history ADD COLUMN client_id VARCHAR(64)",
+                "ALTER TABLE document_history ADD COLUMN nature_of_loan VARCHAR(100) DEFAULT 'House Model'",
             ]
             for mig in migrations:
+                try:
+                    await conn.execute(text(mig))
+                except Exception:
+                    pass
+        else:
+            # PostgreSQL migrations
+            pg_migrations = [
+                "ALTER TABLE clients ADD COLUMN IF NOT EXISTS nature_of_loan VARCHAR(100) DEFAULT 'House Model'",
+                "ALTER TABLE generation_sessions ADD COLUMN IF NOT EXISTS nature_of_loan VARCHAR(100) DEFAULT 'House Model'",
+                "ALTER TABLE document_history ADD COLUMN IF NOT EXISTS nature_of_loan VARCHAR(100) DEFAULT 'House Model'",
+            ]
+            for mig in pg_migrations:
                 try:
                     await conn.execute(text(mig))
                 except Exception:

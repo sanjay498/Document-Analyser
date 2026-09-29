@@ -304,6 +304,7 @@ class Client(Base):
     phone = Column(String(32), nullable=False, index=True)
     email = Column(String(255), nullable=False, index=True)
     title = Column(String(255), nullable=False)
+    nature_of_loan = Column(String(100), nullable=True, default="House Model")
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
@@ -320,6 +321,7 @@ class GenerationSession(Base):
     user_id = Column(String(64), nullable=True, index=True)
     client_id = Column(String(64), ForeignKey("clients.id", ondelete="SET NULL"), nullable=True, index=True)
     template_id = Column(String(64), ForeignKey("template_library.id", ondelete="SET NULL"), nullable=True, index=True)
+    nature_of_loan = Column(String(100), nullable=True, default="House Model")
     created_at = Column(DateTime(timezone=True), default=utc_now)
     template_filename = Column(String(255), nullable=True)
     doc_custom_name = Column(String(255), nullable=True)
@@ -371,6 +373,7 @@ class DocumentHistoryItem(Base):
     user_id = Column(String(64), nullable=True, index=True)
     session_id = Column(String(64), nullable=True, index=True)
     client_id = Column(String(64), ForeignKey("clients.id", ondelete="SET NULL"), nullable=True, index=True)
+    nature_of_loan = Column(String(100), nullable=True, default="House Model")
     template_filename = Column(String(255), nullable=False)
     generated_at = Column(DateTime(timezone=True), default=utc_now)
     sources_summary_json = Column(Text, nullable=True)

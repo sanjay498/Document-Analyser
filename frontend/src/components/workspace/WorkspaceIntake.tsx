@@ -42,6 +42,11 @@ import {
   startScrutinyForClient,
   getClients
 } from '../../services/api';
+import {
+  LOAN_NATURE_OPTIONS,
+  DEFAULT_LOAN_NATURE,
+  getLoanNatureBadgeClass
+} from '../../utils/loanModels';
 
 interface WorkspaceIntakeProps {
   templateFilename?: string;
@@ -123,6 +128,7 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
   const [clientPhone, setClientPhone] = useState('');
   const [clientEmail, setClientEmail] = useState('');
   const [clientTitle, setClientTitle] = useState('');
+  const [clientNatureOfLoan, setClientNatureOfLoan] = useState<string>(DEFAULT_LOAN_NATURE);
   const [isSubmittingClient, setIsSubmittingClient] = useState(false);
   const [clientFormError, setClientFormError] = useState<string | null>(null);
 
@@ -301,6 +307,7 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
         phone: trimmedPhone,
         email: trimmedEmail,
         title: trimmedTitle,
+        nature_of_loan: clientNatureOfLoan,
       });
 
       // Step 3 & 6: Start new scrutiny session linked to client and template
@@ -313,6 +320,7 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
       setClientPhone('');
       setClientEmail('');
       setClientTitle('');
+      setClientNatureOfLoan(DEFAULT_LOAN_NATURE);
       setExistingClientMatch(null);
     } catch (err: any) {
       setClientFormError(err.message || 'Failed to register client and start scrutiny.');
@@ -827,6 +835,12 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
                 <p className="text-amber-300 font-medium">
                   <span className="text-slate-500">Matter Title:</span> {existingClientMatch.title}
                 </p>
+                <p className="text-slate-300">
+                  <span className="text-slate-500">Nature of Loan:</span>{' '}
+                  <span className="text-emerald-300 font-medium">
+                    {existingClientMatch.nature_of_loan || DEFAULT_LOAN_NATURE}
+                  </span>
+                </p>
               </div>
 
               <div className="pt-2 flex flex-col sm:flex-row gap-3">
@@ -859,7 +873,7 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
               </div>
             </div>
           ) : (
-            /* MINIMAL CLIENT FORM (ONLY 4 REQUIRED FIELDS) */
+            /* MINIMAL CLIENT FORM (ONLY 4 REQUIRED FIELDS + LOAN NATURE) */
             <form onSubmit={(e) => handleClientSubmit(e, false)} className="space-y-4">
               {clientFormError && (
                 <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
@@ -907,15 +921,23 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
                             setClientPhone(c.phone);
                             setClientEmail(c.email);
                             setClientTitle(c.title);
+                            if (c.nature_of_loan) {
+                              setClientNatureOfLoan(c.nature_of_loan);
+                            }
                             setShowExistingSelector(false);
                           }}
                           className="p-2.5 rounded-lg bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 flex items-center justify-between cursor-pointer transition-colors text-xs"
                         >
-                          <div>
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-bold text-white">{c.name}</span>
-                            <span className="text-slate-400 text-[11px] ml-2">({c.title})</span>
+                            <span className="text-slate-400 text-[11px]">({c.title})</span>
+                            {c.nature_of_loan && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded border ${getLoanNatureBadgeClass(c.nature_of_loan)}`}>
+                                {c.nature_of_loan}
+                              </span>
+                            )}
                           </div>
-                          <span className="text-[11px] text-amber-400 font-mono">{c.phone}</span>
+                          <span className="text-[11px] text-amber-400 font-mono shrink-0">{c.phone}</span>
                         </div>
                       ))}
                     </div>
@@ -988,6 +1010,30 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
                   onChange={(e) => setClientTitle(e.target.value)}
                   className="w-full bg-[#070a13] border border-slate-800 focus:border-amber-400 rounded-xl px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none transition-colors"
                 />
+              </div>
+
+              {/* 5. Nature of Loan / Facility (Required) */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <span>Nature of Loan / Facility</span>
+                    <span className="text-amber-400">*</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    Model Classification
+                  </span>
+                </label>
+                <select
+                  value={clientNatureOfLoan}
+                  onChange={(e) => setClientNatureOfLoan(e.target.value)}
+                  className="w-full bg-[#070a13] border border-slate-800 focus:border-amber-400 rounded-xl px-4 py-3 text-xs text-white focus:outline-none transition-colors cursor-pointer"
+                >
+                  {LOAN_NATURE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">
+                      {opt.label} — {opt.description}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Action Buttons */}

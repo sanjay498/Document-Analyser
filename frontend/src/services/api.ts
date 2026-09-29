@@ -380,7 +380,8 @@ export async function exportDocument(
   clearHighlight: boolean = true,
   preferredDeedModel?: string,
   qaAnswers?: QuestionAnswer[],
-  docCustomName?: string
+  docCustomName?: string,
+  natureOfLoan?: string
 ): Promise<{
   status: string;
   message: string;
@@ -400,6 +401,7 @@ export async function exportDocument(
       preferred_deed_model: preferredDeedModel || undefined,
       qa_answers: qaAnswers,
       doc_custom_name: docCustomName,
+      nature_of_loan: natureOfLoan || undefined,
     }),
   });
   if (!res.ok) {
