@@ -27,8 +27,7 @@ import { getDeedModels, applyDeedModelToSession, renameSessionDocument, saveSess
 import {
   generateSmartDocName,
   generateSmartTemplateName,
-  sanitizeFilename,
-  detectBankAndDocType
+  sanitizeFilename
 } from '../utils/naming';
 import { LOAN_NATURE_OPTIONS, DEFAULT_LOAN_NATURE } from '../utils/loanModels';
 import type {
@@ -206,10 +205,9 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
   };
 
   const handleOpenSaveTemplateModal = () => {
-    const smartTpl = generateSmartTemplateName({ templateFilename, fields });
-    const detected = detectBankAndDocType('', templateFilename || '');
+    const smartTpl = generateSmartTemplateName({ templateFilename, fields, bankName: 'Default' });
     setTemplateSaveName(smartTpl);
-    setTemplateSaveBank(detected.bank || 'General');
+    setTemplateSaveBank('Default');
     setShowSaveTemplateModal(true);
   };
 
@@ -1859,7 +1857,7 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
                   value={templateSaveBank}
                   onChange={(e) => setTemplateSaveBank(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-white font-medium focus:outline-none"
-                  placeholder="e.g. Canara Bank, SBI, or General"
+                  placeholder="e.g. Default, Canara Bank, or HDFC Bank"
                 />
               </div>
             </div>

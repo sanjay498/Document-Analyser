@@ -131,20 +131,24 @@ def generate_smart_template_name(
     Generates an intelligent, clean template name.
     e.g. 'Canara Bank Legal Opinion Template.docx' or 'SBI Title Scrutiny Template.docx'
     """
-    # Detect from original filename if not provided
-    if not bank or not doc_type or doc_type == "Legal Opinion":
-        d_bank, d_type = detect_bank_and_doc_type("", original_filename)
-        if not bank and d_bank:
-            bank = d_bank
-        if doc_type == "Legal Opinion" and d_type:
+    bank_clean = (bank or "").strip()
+
+    # If bank is not provided and original_filename is present, detect bank from filename
+    if (not bank_clean or bank_clean.lower() in ("general", "default")) and original_filename:
+        d_bank, _ = detect_bank_and_doc_type("", original_filename)
+        if d_bank:
+            bank_clean = d_bank
+
+    # Detect doc type from original filename if not provided
+    if not doc_type or doc_type == "Legal Opinion":
+        _, d_type = detect_bank_and_doc_type("", original_filename)
+        if d_type:
             doc_type = d_type
             
-    # Clean bank name if passed
-    bank_clean = (bank or "").strip()
     doc_clean = (doc_type or "Legal Opinion").strip()
     
     # Format template title
-    if bank_clean and bank_clean.lower() != "general":
+    if bank_clean and bank_clean.lower() not in ("general", "default"):
         name = f"{bank_clean} {doc_clean} Template.docx"
     else:
         name = f"{doc_clean} Template.docx"
@@ -171,7 +175,7 @@ def generate_smart_document_name(
     
     # Normalize bank
     bank_clean = ""
-    if bank and bank.lower() != "general":
+    if bank and bank.lower() not in ("general", "default"):
         bank_clean = re.sub(r'[^a-zA-Z0-9]', '_', bank).strip('_')
         # Common acronym conversion
         if bank.lower() in ("state bank of india", "sbi"):

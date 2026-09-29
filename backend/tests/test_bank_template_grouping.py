@@ -149,3 +149,54 @@ def test_delete_template_group_and_clear_all():
     assert del_all.status_code == 200
     assert client.get("/api/templates/groups").json() == []
     assert client.get("/api/templates").json() == []
+
+
+def test_default_template_group_and_remove_from_bank():
+    client = TestClient(app)
+
+    # 1. Create a session and load sample
+    sess_res = client.post("/api/sessions")
+    session_id = sess_res.json()["session_id"]
+    client.post(f"/api/sessions/{session_id}/load-legal-opinion-sample")
+
+    # 2. Save template with bank_name="Default"
+    res_def = client.post("/api/templates", data={
+        "session_id": session_id,
+        "name": "General_Title_Scrutiny_Format.docx",
+        "bank_name": "Default"
+    })
+    assert res_def.status_code == 200
+    tpl_def = res_def.json()
+    assert tpl_def["bank_name"] == "Default"
+
+    # 3. Save a template under "Canara Bank"
+    res_canara = client.post("/api/templates", data={
+        "session_id": session_id,
+        "name": "Canara_Bank_Format.docx",
+        "bank_name": "Canara Bank"
+    })
+    assert res_canara.status_code == 200
+    tpl_canara = res_canara.json()
+    assert tpl_canara["bank_name"] == "Canara Bank"
+
+    # 4. Remove Canara_Bank_Format from bank by patching bank_name="Default"
+    res_patch = client.patch(f"/api/templates/{tpl_canara['id']}", json={
+        "bank_name": "Default"
+    })
+    assert res_patch.status_code == 200
+    assert res_patch.json()["bank_name"] == "Default"
+
+    # 5. Verify listing templates with bank_name="Default" returns both
+    res_list = client.get("/api/templates?bank_name=Default")
+    assert res_list.status_code == 200
+    names = [t["name"] for t in res_list.json()]
+    assert "General_Title_Scrutiny_Format.docx" in names
+    assert "Canara_Bank_Format.docx" in names
+
+    # 6. Verify bank folders list does not contain "Default" or "General"
+    banks_res = client.get("/api/templates/banks")
+    assert banks_res.status_code == 200
+    banks = banks_res.json()
+    assert "Default" not in banks
+    assert "General" not in banks
+

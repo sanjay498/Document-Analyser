@@ -85,7 +85,7 @@ export const TemplateManagerView: React.FC<TemplateManagerViewProps> = ({
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadCustomName, setUploadCustomName] = useState('');
-  const [uploadBank, setUploadBank] = useState<string>('General');
+  const [uploadBank, setUploadBank] = useState<string>('Default');
   const [isCustomUploadBank, setIsCustomUploadBank] = useState(false);
   const [customUploadBankName, setCustomUploadBankName] = useState('');
   const [isUploading, setIsUploading] = useState(false);
@@ -119,9 +119,13 @@ export const TemplateManagerView: React.FC<TemplateManagerViewProps> = ({
 
   const allBanks = useMemo(() => {
     const set = new Set<string>();
-    bankFolders.forEach((b) => set.add(b));
+    bankFolders.forEach((b) => {
+      if (b && b !== 'General' && b !== 'Default') set.add(b);
+    });
     templates.forEach((t) => {
-      if (t.bank_name) set.add(t.bank_name);
+      if (t.bank_name && t.bank_name !== 'General' && t.bank_name !== 'Default') {
+        set.add(t.bank_name);
+      }
     });
     return Array.from(set);
   }, [bankFolders, templates]);
@@ -132,11 +136,16 @@ export const TemplateManagerView: React.FC<TemplateManagerViewProps> = ({
       counts[b] = 0;
     }
     for (const t of templates) {
-      const b = t.bank_name || 'General';
-      counts[b] = (counts[b] || 0) + 1;
+      if (t.bank_name && t.bank_name !== 'General' && t.bank_name !== 'Default') {
+        counts[t.bank_name] = (counts[t.bank_name] || 0) + 1;
+      }
     }
     return counts;
   }, [allBanks, templates]);
+
+  const defaultCount = useMemo(() => {
+    return templates.filter((t) => !t.bank_name || t.bank_name === 'Default' || t.bank_name === 'General').length;
+  }, [templates]);
 
   const DOCUMENT_CATEGORIES = [
     { id: 'all', label: 'All Types' },
@@ -153,7 +162,14 @@ export const TemplateManagerView: React.FC<TemplateManagerViewProps> = ({
         !q ||
         t.name.toLowerCase().includes(q) ||
         (t.bank_name && t.bank_name.toLowerCase().includes(q));
-      const matchesBank = selectedBank === 'all' || (t.bank_name || 'General') === selectedBank;
+
+      const isDefault = !t.bank_name || t.bank_name === 'Default' || t.bank_name === 'General';
+      const matchesBank =
+        selectedBank === 'all'
+          ? true
+          : selectedBank === 'Default'
+          ? isDefault
+          : (t.bank_name || 'Default') === selectedBank;
 
       let matchesCategory = true;
       if (selectedCategory !== 'all') {
@@ -219,9 +235,14 @@ export const TemplateManagerView: React.FC<TemplateManagerViewProps> = ({
       return;
     }
     try {
-      const updated = await updateTemplateBank(templateId, bankName);
-      setTemplates((prev) => prev.map((t) => (t.id === templateId ? { ...t, bank_name: bankName } : t)));
-      setMessage({ type: 'success', text: `Moved "${updated.name}" to folder "${bankName}"` });
+      const normalized = (!bankName || bankName === 'General') ? 'Default' : bankName;
+      const updated = await updateTemplateBank(templateId, normalized);
+      setTemplates((prev) => prev.map((t) => (t.id === templateId ? { ...t, bank_name: normalized } : t)));
+      if (normalized === 'Default') {
+        setMessage({ type: 'success', text: `Removed "${updated.name}" from bank (moved to Default)` });
+      } else {
+        setMessage({ type: 'success', text: `Moved "${updated.name}" to folder "${normalized}"` });
+      }
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Failed to move template' });
     }
@@ -286,7 +307,7 @@ export const TemplateManagerView: React.FC<TemplateManagerViewProps> = ({
   };
 
   const handleOpenUploadForBank = (bankName?: string) => {
-    const target = bankName || (selectedBank !== 'all' ? selectedBank : 'General');
+    const target = bankName || (selectedBank !== 'all' ? selectedBank : 'Default');
     setUploadBank(target);
     setIsCustomUploadBank(false);
     setCustomUploadBankName('');
@@ -298,7 +319,8 @@ export const TemplateManagerView: React.FC<TemplateManagerViewProps> = ({
     if (!uploadFile) return;
     setIsUploading(true);
     try {
-      const targetBank = isCustomUploadBank ? customUploadBankName.trim() || 'General' : uploadBank;
+      let targetBank = isCustomUploadBank ? customUploadBankName.trim() || 'Default' : uploadBank;
+      if (!targetBank || targetBank === 'General') targetBank = 'Default';
       const saved = await saveTemplateToLibrary(
         uploadFile,
         undefined,
@@ -306,7 +328,7 @@ export const TemplateManagerView: React.FC<TemplateManagerViewProps> = ({
         targetBank
       );
       setTemplates((prev) => [saved, ...prev]);
-      if (!bankFolders.includes(targetBank)) {
+      if (targetBank !== 'Default' && !bankFolders.includes(targetBank)) {
         setBankFolders((prev) => [...prev, targetBank]);
       }
       setShowUploadModal(false);
@@ -432,6 +454,30 @@ export const TemplateManagerView: React.FC<TemplateManagerViewProps> = ({
               }`}
             >
               {templates.length}
+            </span>
+          </button>
+
+          {/* Default (No Bank) Tab */}
+          <button
+            onClick={() => setSelectedBank('Default')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium shrink-0 transition-all cursor-pointer ${
+              selectedBank === 'Default'
+                ? 'bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/50 shadow-md shadow-amber-500/10'
+                : 'bg-slate-900/90 text-slate-400 hover:text-slate-200 hover:bg-slate-800 border border-slate-800'
+            }`}
+          >
+            <Folder className={`w-3.5 h-3.5 ${selectedBank === 'Default' ? 'text-amber-400' : 'text-slate-500'}`} />
+            <span>Default</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
+                selectedBank === 'Default'
+                  ? 'bg-amber-500/30 text-amber-200'
+                  : defaultCount > 0
+                  ? 'bg-slate-800 text-slate-300'
+                  : 'bg-slate-850 text-slate-600'
+              }`}
+            >
+              {defaultCount}
             </span>
           </button>
 
@@ -672,10 +718,51 @@ export const TemplateManagerView: React.FC<TemplateManagerViewProps> = ({
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sky-500/10 text-sky-300 border border-sky-500/30 flex items-center gap-1 shrink-0">
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1 shrink-0 ${
+                        !t.bank_name || t.bank_name === 'Default' || t.bank_name === 'General'
+                          ? 'bg-slate-800 text-slate-400 border border-slate-700'
+                          : 'bg-sky-500/10 text-sky-300 border border-sky-500/30'
+                      }`}
+                    >
                       <Building2 className="w-3 h-3 text-sky-400" />
-                      <span>{t.bank_name || 'General'}</span>
+                      <span>{!t.bank_name || t.bank_name === 'General' ? 'Default' : t.bank_name}</span>
                     </span>
+
+                    {/* Bank / Group selector */}
+                    <div className="relative inline-block">
+                      <select
+                        value={!t.bank_name || t.bank_name === 'General' ? 'Default' : t.bank_name}
+                        onChange={(e) => handleMoveBank(t.id, e.target.value)}
+                        className="bg-slate-900 hover:bg-slate-850 border border-slate-700/70 hover:border-slate-600 rounded-md px-2 py-0.5 text-[10px] text-slate-300 hover:text-white focus:outline-none focus:border-amber-400 cursor-pointer"
+                        title="Move this template to another bank / group or remove from bank"
+                      >
+                        <option value="Default">📁 Default (No Bank)</option>
+                        {allBanks.length > 0 && (
+                          <optgroup label="Move to Bank / Group:">
+                            {allBanks.map((b) => (
+                              <option key={b} value={b}>
+                                🏛️ {b}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        <option value="__NEW__">+ New Bank / Group...</option>
+                      </select>
+                    </div>
+
+                    {/* Quick Remove from Bank Button */}
+                    {t.bank_name && t.bank_name !== 'Default' && t.bank_name !== 'General' && (
+                      <button
+                        type="button"
+                        onClick={() => handleMoveBank(t.id, 'Default')}
+                        className="px-2 py-0.5 rounded text-[10px] font-medium text-rose-300/90 hover:text-rose-200 bg-rose-950/30 hover:bg-rose-950/60 border border-rose-800/40 transition-colors cursor-pointer"
+                        title={`Remove "${t.name}" from ${t.bank_name} (move to Default)`}
+                      >
+                        Remove from Bank
+                      </button>
+                    )}
+
                     <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-slate-800 text-slate-300 border border-slate-700 uppercase shrink-0">
                       {t.name.split('.').pop() || 'DOCX'}
                     </span>
@@ -786,31 +873,52 @@ export const TemplateManagerView: React.FC<TemplateManagerViewProps> = ({
             >
               <div className="space-y-3">
                 {/* Bank Folder Badge & Format Pill */}
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-sky-500/10 text-sky-300 border border-sky-500/30 flex items-center gap-1.5 shrink-0">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1 shrink-0 ${
+                        !t.bank_name || t.bank_name === 'Default' || t.bank_name === 'General'
+                          ? 'bg-slate-800 text-slate-400 border border-slate-700'
+                          : 'bg-sky-500/10 text-sky-300 border border-sky-500/30'
+                      }`}
+                    >
                       <Building2 className="w-3 h-3 text-sky-400" />
-                      <span>{t.bank_name || 'General'}</span>
+                      <span>{!t.bank_name || t.bank_name === 'General' ? 'Default' : t.bank_name}</span>
                     </span>
 
                     {/* Quick Move to Bank Folder dropdown */}
                     <div className="relative inline-block">
                       <select
-                        value={t.bank_name || 'General'}
+                        value={!t.bank_name || t.bank_name === 'General' ? 'Default' : t.bank_name}
                         onChange={(e) => handleMoveBank(t.id, e.target.value)}
-                        className="bg-slate-900 hover:bg-slate-850 border border-slate-700/70 hover:border-slate-600 rounded-md px-2 py-0.5 text-[10px] text-slate-400 hover:text-slate-200 focus:outline-none focus:border-amber-400 cursor-pointer"
-                        title="Move this template to another bank folder"
+                        className="bg-slate-900 hover:bg-slate-850 border border-slate-700/70 hover:border-slate-600 rounded-md px-2 py-0.5 text-[10px] text-slate-300 hover:text-white focus:outline-none focus:border-amber-400 cursor-pointer"
+                        title="Move this template to another bank / group or remove from bank"
                       >
-                        <optgroup label="Move to Bank Folder:">
-                          {allBanks.map((b) => (
-                            <option key={b} value={b}>
-                              📁 {b}
-                            </option>
-                          ))}
-                        </optgroup>
-                        <option value="__NEW__">+ New Bank Folder...</option>
+                        <option value="Default">📁 Default (No Bank)</option>
+                        {allBanks.length > 0 && (
+                          <optgroup label="Move to Bank / Group:">
+                            {allBanks.map((b) => (
+                              <option key={b} value={b}>
+                                🏛️ {b}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        <option value="__NEW__">+ New Bank / Group...</option>
                       </select>
                     </div>
+
+                    {/* Quick Remove from Bank Button */}
+                    {t.bank_name && t.bank_name !== 'Default' && t.bank_name !== 'General' && (
+                      <button
+                        type="button"
+                        onClick={() => handleMoveBank(t.id, 'Default')}
+                        className="px-2 py-0.5 rounded text-[10px] font-medium text-rose-300/90 hover:text-rose-200 bg-rose-950/30 hover:bg-rose-950/60 border border-rose-800/40 transition-colors cursor-pointer"
+                        title={`Remove "${t.name}" from ${t.bank_name} (move to Default)`}
+                      >
+                        Remove from Bank
+                      </button>
+                    )}
                   </div>
 
                   <span className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-slate-800 text-slate-300 border border-slate-700 uppercase shrink-0">
@@ -1068,7 +1176,7 @@ export const TemplateManagerView: React.FC<TemplateManagerViewProps> = ({
                 </label>
                 <div className="space-y-2">
                   <select
-                    value={isCustomUploadBank || allBanks.length === 0 ? '__CUSTOM__' : uploadBank}
+                    value={isCustomUploadBank ? '__CUSTOM__' : uploadBank}
                     onChange={(e) => {
                       if (e.target.value === '__CUSTOM__') {
                         setIsCustomUploadBank(true);
@@ -1079,15 +1187,16 @@ export const TemplateManagerView: React.FC<TemplateManagerViewProps> = ({
                     }}
                     className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer"
                   >
+                    <option value="Default">📁 Default (No Bank)</option>
                     {allBanks.map((b) => (
                       <option key={b} value={b}>
-                        📁 {b}
+                        🏛️ {b}
                       </option>
                     ))}
                     <option value="__CUSTOM__">+ Create New Template Group...</option>
                   </select>
 
-                  {(isCustomUploadBank || allBanks.length === 0) && (
+                  {isCustomUploadBank && (
                     <input
                       type="text"
                       placeholder="Enter new template group name (e.g. State Bank of India, Commercial Loan)..."

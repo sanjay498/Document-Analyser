@@ -18,10 +18,6 @@ import {
   Phone,
   Mail,
   UserCheck,
-  Filter,
-  SlidersHorizontal,
-  LayoutList,
-  LayoutGrid,
   X
 } from 'lucide-react';
 import type {
@@ -101,8 +97,6 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
 
   // Template Selection (Step 1 of Create New Scrutiny)
   const [templates, setTemplates] = useState<TemplateSummary[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [viewLayout, setViewLayout] = useState<'horizontal_rows' | 'horizontal_pills' | 'grid'>('horizontal_rows');
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [templateSearch, setTemplateSearch] = useState<string>(() => {
     try {
@@ -345,39 +339,15 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
     }
   };
 
-  const DOCUMENT_CATEGORIES = [
-    { id: 'all', label: 'All Types' },
-    { id: 'opinion', label: 'Title Opinion & Scrutiny', keywords: ['opinion', 'scrutiny', 'search', 'report', 'clearance', 'title'] },
-    { id: 'agri', label: 'Agricultural Land', keywords: ['agri', 'agricultural', '7/12', 'farm', 'cultivation', 'land'] },
-    { id: 'housing', label: 'Housing & Mortgage', keywords: ['housing', 'mortgage', 'loan', 'residential', 'flat', 'apartment'] },
-    { id: 'commercial', label: 'Commercial & Lease', keywords: ['commercial', 'industrial', 'lease', 'office', 'shop', 'business'] },
-  ];
-
-  // Filter real database templates by search input and category
+  // Filter real database templates by search input
   const filteredTemplates = templates.filter((t) => {
     const q = templateSearch.toLowerCase().trim();
-    const matchesSearch = !q || (
+    if (!q) return true;
+    return (
       t.name.toLowerCase().includes(q) ||
       (t.bank_name && t.bank_name.toLowerCase().includes(q))
     );
-
-    let matchesCategory = true;
-    if (selectedCategory !== 'all') {
-      const catDef = DOCUMENT_CATEGORIES.find((c) => c.id === selectedCategory);
-      if (catDef && catDef.keywords) {
-        const fullText = `${t.name} ${t.bank_name || ''}`.toLowerCase();
-        matchesCategory = catDef.keywords.some((kw) => fullText.includes(kw));
-      }
-    }
-
-    return matchesSearch && matchesCategory;
   });
-
-  const isAnyFilterActive = templateSearch.trim() !== '' || selectedCategory !== 'all';
-  const handleResetFilters = () => {
-    handleTemplateSearchChange('');
-    setSelectedCategory('all');
-  };
 
   const activeModel = preferredDeedModel === 'auto'
     ? autoDetectedModel
@@ -1079,7 +1049,7 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
               Create New Scrutiny
             </h1>
             <p className="text-xs sm:text-sm text-slate-400 max-w-xl mx-auto leading-relaxed">
-              Select an opinion template directly from your database, filter by category or format, or upload a new template (.docx) to begin.
+              Select an opinion template directly from your database or upload a new template (.docx) to begin.
             </p>
           </div>
 
@@ -1137,151 +1107,16 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
             </div>
           </div>
 
-          {/* FILTER OPTIONS & VIEW TOGGLE PANEL */}
-          <div className="bg-[#0b0f19] border border-slate-800 rounded-2xl p-4 space-y-3.5 shadow-lg">
-            {/* Document Type / Category Filter Bar */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Filter className="w-3.5 h-3.5 text-sky-400" />
-                  <span>Document Type / Category Filter</span>
-                </span>
-                <div className="flex items-center gap-2">
-                  {isAnyFilterActive && (
-                    <button
-                      type="button"
-                      onClick={handleResetFilters}
-                      className="text-[11px] text-amber-400 hover:text-amber-300 underline font-semibold cursor-pointer"
-                    >
-                      Reset Filters
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
-                {DOCUMENT_CATEGORIES.map((cat) => {
-                  const isSelected = selectedCategory === cat.id;
-                  return (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => setSelectedCategory(cat.id)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-medium shrink-0 transition-all cursor-pointer ${
-                        isSelected
-                          ? 'bg-sky-500 text-white font-bold shadow-md shadow-sky-500/20'
-                          : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'
-                      }`}
-                    >
-                      {cat.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* View Mode Switcher & Active Filter Stats */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-800/80 text-xs">
-              <div className="flex items-center gap-2 text-slate-400">
-                <span className="font-semibold text-white">{filteredTemplates.length}</span>
-                <span>{filteredTemplates.length === 1 ? 'template available' : 'templates available'}</span>
-                {isAnyFilterActive && (
-                  <span className="text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/20 px-2 py-0.5 rounded-full">
-                    Filtered
-                  </span>
-                )}
-              </div>
-
-              {/* View Switcher: Horizontal Rows (Default), Horizontal Ribbon, Grid */}
-              <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setViewLayout('horizontal_rows')}
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                    viewLayout === 'horizontal_rows'
-                      ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                  title="Display full template names horizontally in wide rows"
-                >
-                  <LayoutList className="w-3.5 h-3.5" />
-                  <span>Horizontal Rows</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setViewLayout('horizontal_pills')}
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                    viewLayout === 'horizontal_pills'
-                      ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                  title="Display templates in horizontal ribbon capsules"
-                >
-                  <SlidersHorizontal className="w-3.5 h-3.5" />
-                  <span>Horizontal Ribbon</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setViewLayout('grid')}
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                    viewLayout === 'grid'
-                      ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                  title="Display templates in 2-column grid"
-                >
-                  <LayoutGrid className="w-3.5 h-3.5" />
-                  <span>Grid</span>
-                </button>
-              </div>
-            </div>
+          <div className="flex items-center justify-between px-1 text-xs text-slate-400">
+            <span>
+              <strong className="text-white font-semibold">{filteredTemplates.length}</strong>{' '}
+              {filteredTemplates.length === 1 ? 'template available' : 'templates available'}
+            </span>
           </div>
 
-          {/* HORIZONTAL QUICK-SELECT CAROUSEL RIBBON */}
-          {filteredTemplates.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs px-1">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <SlidersHorizontal className="w-3 h-3 text-amber-400" />
-                  <span>Quick Select (Horizontal Carousel)</span>
-                </span>
-                <span className="text-[10px] text-slate-500">Scroll horizontally →</span>
-              </div>
-              <div className="flex items-center gap-2.5 overflow-x-auto pb-2 scrollbar-thin">
-                {filteredTemplates.map((t) => (
-                  <div
-                    key={`quick-${t.id}`}
-                    onClick={() => handleSelectTemplate(t)}
-                    className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-[#0b0f19] hover:bg-[#111728] border border-slate-800 hover:border-amber-400/60 shrink-0 transition-all cursor-pointer shadow-md group"
-                    title={t.name}
-                  >
-                    <div className="w-6 h-6 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
-                      <FileText className="w-3.5 h-3.5" />
-                    </div>
-                    <span className="text-xs font-semibold text-white group-hover:text-amber-300 whitespace-nowrap">
-                      {t.name}
-                    </span>
-                    <span className="text-[10px] font-semibold text-slate-300 bg-slate-800 border border-slate-700 px-2 py-0.5 rounded-full shrink-0">
-                      {t.bank_name || 'General'}
-                    </span>
-                    <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 shrink-0">
-                      {t.fields_count} vars
-                    </span>
-                    <span className="text-xs font-bold text-amber-400 flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform shrink-0">
-                      <span>Select</span>
-                      <ArrowRight className="w-3 h-3" />
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* TEMPLATES CONTAINER (HORIZONTAL ROWS / PILLS / GRID) */}
+          {/* TEMPLATES CONTAINER (CLEAN SIMPLE LIST) */}
           {isLoadingTemplates ? (
-            <div className="bg-[#0b0f19] border border-slate-800 rounded-3xl p-16 text-center space-y-3">
+            <div className="bg-[#0b0f19] border border-slate-800 rounded-2xl p-12 text-center space-y-3">
               <RefreshCw className="w-8 h-8 text-amber-400 animate-spin mx-auto" />
               <p className="text-xs font-medium text-slate-300">Loading templates from database...</p>
             </div>
@@ -1291,20 +1126,20 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
-              className={`rounded-3xl border-2 border-dashed p-12 text-center transition-all duration-200 flex flex-col items-center justify-center space-y-4 ${
+              className={`rounded-2xl border-2 border-dashed p-10 text-center transition-all duration-200 flex flex-col items-center justify-center space-y-4 ${
                 isDragOver
                   ? 'border-amber-400 bg-amber-500/5'
                   : 'border-slate-800 bg-[#0b0f19]'
               }`}
             >
-              <LegalDocEmptyIllustration size={90} className="opacity-90" />
+              <LegalDocEmptyIllustration size={80} className="opacity-90" />
               <div className="space-y-1 max-w-md mx-auto">
-                <h2 className="text-base font-bold text-white tracking-tight">
+                <h2 className="text-sm font-bold text-white tracking-tight">
                   No templates found in database
                 </h2>
                 <p className="text-xs text-slate-400 leading-relaxed">
                   To start a scrutiny, please upload an opinion template (.docx) with yellow highlighted variables.
-                  The template will be permanently registered in your template library.
+                  The template will be saved to your template library.
                 </p>
               </div>
 
@@ -1312,181 +1147,90 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
                 <button
                   type="button"
                   onClick={() => templateUploadInputRef.current?.click()}
-                  className="px-6 py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs transition-all shadow-md shadow-amber-400/10 active:scale-95 cursor-pointer flex items-center gap-2"
+                  className="px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs transition-all shadow-md shadow-amber-400/10 active:scale-95 cursor-pointer flex items-center gap-2"
                 >
                   <UploadCloud className="w-4 h-4" />
                   <span>Upload Template (.docx)</span>
                 </button>
               </div>
-
-              <p className="text-[11px] text-slate-500">
-                Word document (.docx) with yellow highlighted fields
-              </p>
             </div>
           ) : filteredTemplates.length === 0 ? (
             /* No search results */
-            <div className="bg-[#0b0f19] border border-slate-800 rounded-3xl p-12 text-center space-y-3">
+            <div className="bg-[#0b0f19] border border-slate-800 rounded-2xl p-10 text-center space-y-3">
               <FileText className="w-8 h-8 text-slate-600 mx-auto" />
               <h3 className="text-sm font-bold text-white">No matching templates</h3>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
-                No templates matched your current filter criteria {templateSearch ? `"${templateSearch}"` : ''}.
+                No templates matched your search {templateSearch ? `"${templateSearch}"` : ''}.
               </p>
-              {isAnyFilterActive && (
+              {templateSearch && (
                 <button
                   type="button"
-                  onClick={handleResetFilters}
+                  onClick={() => handleTemplateSearchChange('')}
                   className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs font-semibold transition-colors cursor-pointer inline-flex items-center gap-1.5"
                 >
-                  <span>Reset All Filters</span>
+                  <span>Clear Search</span>
                 </button>
               )}
             </div>
-          ) : viewLayout === 'horizontal_rows' ? (
-            /* VIEW LAYOUT 1: HORIZONTAL ROWS (DEFAULT - TEMPLATE NAMES DISPLAYED HORIZONTALLY) */
-            <div className="space-y-3">
-              {filteredTemplates.map((t) => (
-                <div
-                  key={t.id}
-                  onClick={() => handleSelectTemplate(t)}
-                  className="w-full p-4.5 rounded-2xl bg-[#0b0f19] border border-slate-800 hover:border-amber-400/60 hover:bg-[#0e1424] transition-all cursor-pointer group flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg hover:shadow-amber-400/5"
-                >
-                  {/* Left: Icon + Bank + Name stretched horizontally */}
-                  <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                    <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                      <FileText className="w-5 h-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        {t.bank_name ? (
-                          <span className="text-[10px] font-semibold text-slate-300 bg-slate-800 border border-slate-700 px-2.5 py-0.5 rounded-full flex items-center gap-1 shrink-0">
-                            <Building className="w-3 h-3 text-amber-400" />
-                            {t.bank_name}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-medium text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 shrink-0">
-                            General
-                          </span>
-                        )}
-                        <span className="text-[10px] font-mono text-slate-500">
-                          ID: {t.id.slice(0, 8)}...
-                        </span>
-                      </div>
-                      {/* Full Name Displayed Horizontally */}
-                      <h3
-                        className="font-bold text-white text-sm sm:text-base group-hover:text-amber-300 transition-colors tracking-tight leading-snug break-words"
-                        title={t.name}
-                      >
-                        {t.name}
-                      </h3>
-                    </div>
-                  </div>
-
-                  {/* Right: Badges & Select Action Button */}
-                  <div className="flex items-center justify-between md:justify-end gap-3 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-800/80">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-medium text-amber-300 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20">
-                        {t.fields_count} variables
-                      </span>
-                      {t.table_groups_count > 0 && (
-                        <span className="text-[11px] font-medium text-slate-300 bg-slate-800 px-2.5 py-1 rounded-lg">
-                          {t.table_groups_count} tables
-                        </span>
-                      )}
-                    </div>
-
-                    <span className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md shadow-amber-400/10 group-hover:scale-105 transition-all">
-                      <span>Select Template</span>
-                      <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : viewLayout === 'horizontal_pills' ? (
-            /* VIEW LAYOUT 2: HORIZONTAL PILLS */
-            <div className="space-y-2">
-              {filteredTemplates.map((t) => (
-                <div
-                  key={t.id}
-                  onClick={() => handleSelectTemplate(t)}
-                  className="w-full px-4 py-3 rounded-xl bg-[#0b0f19] border border-slate-800 hover:border-amber-400/60 hover:bg-[#0e1424] transition-all cursor-pointer group flex items-center justify-between gap-4 shadow-md"
-                >
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <FileText className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span className="font-semibold text-white text-xs sm:text-sm group-hover:text-amber-300 break-words flex-1">
-                      {t.name}
-                    </span>
-                    <span className="text-[10px] font-semibold text-slate-300 bg-slate-800 border border-slate-700 px-2 py-0.5 rounded-full shrink-0">
-                      {t.bank_name || 'General'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2.5 shrink-0">
-                    <span className="text-[10px] text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded font-mono border border-amber-500/20">
-                      {t.fields_count} vars
-                    </span>
-                    <span className="text-xs font-bold text-amber-400 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-                      <span>Select</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
           ) : (
-            /* VIEW LAYOUT 3: GRID CARDS */
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {filteredTemplates.map((t) => (
-                <div
-                  key={t.id}
-                  onClick={() => handleSelectTemplate(t)}
-                  className="p-5 rounded-2xl bg-[#0b0f19] border border-slate-800 hover:border-amber-400/60 hover:bg-[#0e1424] transition-all cursor-pointer group flex flex-col justify-between space-y-4 shadow-lg hover:shadow-amber-400/5"
-                >
-                  <div className="space-y-2.5">
-                    <div className="flex items-start justify-between gap-3">
+            /* CLEAN STREAMLINED TEMPLATE LIST */
+            <div className="space-y-2.5">
+              {filteredTemplates.map((t) => {
+                const bankLabel = (t.bank_name && t.bank_name !== 'General') ? t.bank_name : 'Default';
+                const isDefault = bankLabel.toLowerCase() === 'default';
+
+                return (
+                  <div
+                    key={t.id}
+                    onClick={() => handleSelectTemplate(t)}
+                    className="w-full p-4 rounded-xl bg-[#0b0f19] border border-slate-800 hover:border-amber-400/60 hover:bg-[#0e1424] transition-all cursor-pointer group flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md hover:shadow-amber-400/5"
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0 flex-1">
                       <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                         <FileText className="w-4 h-4" />
                       </div>
-                      {t.bank_name ? (
-                        <span className="text-[10px] font-semibold text-slate-300 bg-slate-800 border border-slate-700 px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0">
-                          <Building className="w-3 h-3 text-amber-400" />
-                          {t.bank_name}
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-medium text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-                          General
-                        </span>
-                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span
+                            className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1 shrink-0 ${
+                              isDefault
+                                ? 'bg-slate-800/80 text-slate-400 border border-slate-700/60'
+                                : 'bg-amber-500/10 text-amber-300 border border-amber-500/30'
+                            }`}
+                          >
+                            <Building className="w-2.5 h-2.5" />
+                            {bankLabel}
+                          </span>
+                        </div>
+                        <h3
+                          className="font-bold text-white text-sm group-hover:text-amber-300 transition-colors leading-snug break-words"
+                          title={t.name}
+                        >
+                          {t.name}
+                        </h3>
+                      </div>
                     </div>
 
-                    <div>
-                      <h3 className="font-bold text-white text-sm group-hover:text-amber-300 transition-colors" title={t.name}>
-                        {t.name}
-                      </h3>
-                      <p className="text-[10px] text-slate-500 font-mono mt-1">
-                        ID: {t.id.slice(0, 8)}...
-                      </p>
-                    </div>
-                  </div>
+                    <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800/80">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-medium text-amber-300 bg-amber-500/10 px-2.5 py-0.5 rounded border border-amber-500/20">
+                          {t.fields_count} variables
+                        </span>
+                        {t.table_groups_count > 0 && (
+                          <span className="text-[11px] font-medium text-slate-300 bg-slate-800 px-2.5 py-0.5 rounded">
+                            {t.table_groups_count} tables
+                          </span>
+                        )}
+                      </div>
 
-                  <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-medium text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                        {t.fields_count} variables
+                      <span className="px-3.5 py-1.5 rounded-xl bg-amber-400 group-hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md shadow-amber-400/10 transition-all">
+                        <span>Select</span>
+                        <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
                       </span>
-                      {t.table_groups_count > 0 && (
-                        <span className="text-[10px] font-medium text-slate-300 bg-slate-800 px-2 py-0.5 rounded">
-                          {t.table_groups_count} tables
-                        </span>
-                      )}
                     </div>
-
-                    <span className="text-amber-400 font-bold text-xs flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
-                      <span>Select</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </span>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 

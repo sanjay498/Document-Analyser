@@ -151,7 +151,7 @@ class RenameDocumentRequest(BaseModel):
 
 class SaveAsTemplateRequest(BaseModel):
     name: Optional[str] = None
-    bank_name: Optional[str] = "General"
+    bank_name: Optional[str] = "Default"
 
 
 class ApplyDeedModelRequest(BaseModel):
@@ -249,11 +249,11 @@ async def upload_template(
         session = GenerationSession(id=session_id)
         db.add(session)
 
-    # Detect bank and doc type to suggest intelligent auto-names
+    # Detect doc type to suggest intelligent auto-names (do not auto-allocate bank)
     sample_text = " ".join([f.paragraph_context for f in fields[:12]])
-    d_bank, d_type = detect_bank_and_doc_type(sample_text, safe_filename)
-    suggested_tpl_name = generate_smart_template_name(bank=d_bank, doc_type=d_type, original_filename=safe_filename)
-    suggested_doc = generate_smart_document_name(bank=d_bank, doc_type=d_type, original_filename=safe_filename)
+    _, d_type = detect_bank_and_doc_type(sample_text, safe_filename)
+    suggested_tpl_name = generate_smart_template_name(bank="", doc_type=d_type, original_filename=safe_filename)
+    suggested_doc = generate_smart_document_name(bank="", doc_type=d_type, original_filename=safe_filename)
 
     session.template_filename = safe_filename
     session.template_bytes = file_bytes
@@ -857,15 +857,14 @@ async def save_session_as_template(
     if not session or not session.template_bytes:
         raise HTTPException(status_code=404, detail="Session or template not found")
 
-    d_bank, d_type = detect_bank_and_doc_type("", session.template_filename or "")
-    bank = (payload.bank_name if payload and payload.bank_name else "").strip()
-    if not bank or bank.lower() == "general":
-        bank = d_bank or "General"
+    _, d_type = detect_bank_and_doc_type("", session.template_filename or "")
+    raw_bank = (payload.bank_name if payload and payload.bank_name else "").strip()
+    bank = "Default" if not raw_bank or raw_bank.lower() in ("general", "default", "none") else raw_bank
 
     if payload and payload.name and payload.name.strip():
         template_name = payload.name.strip()
     else:
-        template_name = generate_smart_template_name(bank=bank, doc_type=d_type, original_filename=session.template_filename or "")
+        template_name = generate_smart_template_name(bank=bank if bank != "Default" else "", doc_type=d_type, original_filename=session.template_filename or "")
 
     raw_fields = json.loads(session.fields_json or "[]")
     raw_tables = json.loads(session.table_groups_json or "[]")

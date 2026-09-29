@@ -58,7 +58,7 @@ export const TemplateLibraryModal: React.FC<TemplateLibraryModalProps> = ({
   const [editName, setEditName] = useState('');
   const [isSavingCurrent, setIsSavingCurrent] = useState(false);
   const [saveCurrentName, setSaveCurrentName] = useState('');
-  const [saveCurrentBank, setSaveCurrentBank] = useState('General');
+  const [saveCurrentBank, setSaveCurrentBank] = useState('Default');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const fetchTemplates = async () => {
@@ -85,19 +85,28 @@ export const TemplateLibraryModal: React.FC<TemplateLibraryModalProps> = ({
 
   const allBanks = useMemo(() => {
     const set = new Set<string>();
-    bankFolders.forEach((b) => set.add(b));
+    bankFolders.forEach((b) => {
+      if (b && b !== 'General' && b !== 'Default') set.add(b);
+    });
     templates.forEach((t) => {
-      if (t.bank_name) set.add(t.bank_name);
+      if (t.bank_name && t.bank_name !== 'General' && t.bank_name !== 'Default') {
+        set.add(t.bank_name);
+      }
     });
     return Array.from(set);
   }, [bankFolders, templates]);
+
+  const defaultCount = useMemo(() => {
+    return templates.filter((t) => !t.bank_name || t.bank_name === 'Default' || t.bank_name === 'General').length;
+  }, [templates]);
 
   const bankCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const b of allBanks) counts[b] = 0;
     for (const t of templates) {
-      const b = t.bank_name || 'General';
-      counts[b] = (counts[b] || 0) + 1;
+      if (t.bank_name && t.bank_name !== 'General' && t.bank_name !== 'Default') {
+        counts[t.bank_name] = (counts[t.bank_name] || 0) + 1;
+      }
     }
     return counts;
   }, [allBanks, templates]);
@@ -117,7 +126,14 @@ export const TemplateLibraryModal: React.FC<TemplateLibraryModalProps> = ({
         !q ||
         t.name.toLowerCase().includes(q) ||
         (t.bank_name && t.bank_name.toLowerCase().includes(q));
-      const matchesBank = selectedBank === 'all' || (t.bank_name || 'General') === selectedBank;
+
+      const isDefault = !t.bank_name || t.bank_name === 'Default' || t.bank_name === 'General';
+      const matchesBank =
+        selectedBank === 'all'
+          ? true
+          : selectedBank === 'Default'
+          ? isDefault
+          : (t.bank_name || 'Default') === selectedBank;
 
       let matchesCategory = true;
       if (selectedCategory !== 'all') {
@@ -174,7 +190,7 @@ export const TemplateLibraryModal: React.FC<TemplateLibraryModalProps> = ({
     if (!currentSessionId) return;
     setIsSavingCurrent(true);
     try {
-      const targetBank = saveCurrentBank || (selectedBank !== 'all' ? selectedBank : 'General');
+      const targetBank = (!saveCurrentBank || saveCurrentBank === 'General') ? 'Default' : saveCurrentBank;
       const saved = await saveTemplateToLibrary(
         undefined,
         currentSessionId,
@@ -255,9 +271,10 @@ export const TemplateLibraryModal: React.FC<TemplateLibraryModalProps> = ({
                 onChange={(e) => setSaveCurrentBank(e.target.value)}
                 className="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-amber-400"
               >
+                <option value="Default">📁 Default (No Bank)</option>
                 {allBanks.map((b) => (
                   <option key={b} value={b}>
-                    📁 {b}
+                    🏛️ {b}
                   </option>
                 ))}
               </select>
@@ -295,6 +312,19 @@ export const TemplateLibraryModal: React.FC<TemplateLibraryModalProps> = ({
                 <Layers className="w-3 h-3" />
                 <span>All</span>
                 <span className="text-[10px] opacity-75">({templates.length})</span>
+              </button>
+
+              <button
+                onClick={() => setSelectedBank('Default')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs shrink-0 transition-all ${
+                  selectedBank === 'Default'
+                    ? 'bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/40'
+                    : 'bg-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                }`}
+              >
+                <Building2 className={`w-3 h-3 ${selectedBank === 'Default' ? 'text-amber-400' : 'text-slate-500'}`} />
+                <span className="whitespace-nowrap">Default</span>
+                <span className="text-[10px] opacity-75">({defaultCount})</span>
               </button>
 
               {allBanks.map((bank) => {
@@ -402,9 +432,15 @@ export const TemplateLibraryModal: React.FC<TemplateLibraryModalProps> = ({
               >
                 <div className="min-w-0 space-y-1.5">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sky-500/10 text-sky-300 border border-sky-500/30 flex items-center gap-1">
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1 ${
+                        !t.bank_name || t.bank_name === 'Default' || t.bank_name === 'General'
+                          ? 'bg-slate-800 text-slate-400 border border-slate-700'
+                          : 'bg-sky-500/10 text-sky-300 border border-sky-500/30'
+                      }`}
+                    >
                       <Building2 className="w-2.5 h-2.5 text-sky-400" />
-                      <span>{t.bank_name || 'General'}</span>
+                      <span>{!t.bank_name || t.bank_name === 'General' ? 'Default' : t.bank_name}</span>
                     </span>
 
                     {editingId === t.id ? (

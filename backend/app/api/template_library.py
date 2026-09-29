@@ -27,7 +27,7 @@ router = APIRouter(prefix="/api/templates", tags=["templates"])
 class TemplateSummaryResponse(BaseModel):
     id: str
     name: str
-    bank_name: str = "General"
+    bank_name: str = "Default"
     created_at: str
     fields_count: int
     table_groups_count: int
@@ -54,7 +54,7 @@ class TemplateGroupResponse(BaseModel):
 class UseTemplateResponse(BaseModel):
     session_id: str
     template_filename: str
-    bank_name: str = "General"
+    bank_name: str = "Default"
     fields_count: int
     table_groups_count: int
     fields: list
@@ -69,7 +69,7 @@ async def list_bank_folders(
 ):
     """
     Returns unique template groups registered across all templates and custom groups.
-    Strictly does NOT inject any hardcoded or inbuilt standard banks.
+    Excludes base default/general unassigned group.
     """
     groups_set = set()
 
@@ -81,7 +81,7 @@ async def list_bank_folders(
         )
     res_groups = await db.execute(stmt_groups)
     for r in res_groups.fetchall():
-        if r[0] and r[0].strip():
+        if r[0] and r[0].strip() and r[0].strip() not in ("General", "Default"):
             groups_set.add(r[0].strip())
 
     # 2. Also union with distinct bank_name from TemplateLibraryItem
@@ -92,7 +92,7 @@ async def list_bank_folders(
         )
     res = await db.execute(stmt)
     for r in res.fetchall():
-        if r[0] and r[0].strip():
+        if r[0] and r[0].strip() and r[0].strip() not in ("General", "Default"):
             groups_set.add(r[0].strip())
 
     return sorted(list(groups_set))
@@ -162,6 +162,12 @@ async def delete_template_group(
     return {"status": "success", "message": f"Template group '{clean_name}' deleted"}
 
 
+def normalize_bank_name(b: Optional[str]) -> str:
+    if not b or b.strip() in ("General", "Default", "", "None", "null"):
+        return "Default"
+    return b.strip()
+
+
 @router.get("", response_model=List[TemplateSummaryResponse])
 async def list_templates(
     bank_name: Optional[str] = None,
@@ -174,7 +180,14 @@ async def list_templates(
             (TemplateLibraryItem.user_id == current_user.id) | (TemplateLibraryItem.user_id.is_(None))
         )
     if bank_name and bank_name.strip():
-        stmt = stmt.where(TemplateLibraryItem.bank_name == bank_name.strip())
+        req_b = bank_name.strip()
+        if req_b in ("Default", "General"):
+            stmt = stmt.where(
+                (TemplateLibraryItem.bank_name.in_(["Default", "General", "", None]))
+                | (TemplateLibraryItem.bank_name.is_(None))
+            )
+        else:
+            stmt = stmt.where(TemplateLibraryItem.bank_name == req_b)
 
     stmt = stmt.order_by(TemplateLibraryItem.bank_name.asc(), TemplateLibraryItem.created_at.desc())
     res = await db.execute(stmt)
@@ -184,7 +197,7 @@ async def list_templates(
         TemplateSummaryResponse(
             id=item.id,
             name=item.name,
-            bank_name=item.bank_name or "General",
+            bank_name=normalize_bank_name(item.bank_name),
             created_at=item.created_at.isoformat() if item.created_at else "",
             fields_count=item.fields_count,
             table_groups_count=item.table_groups_count
@@ -198,12 +211,13 @@ async def save_template_to_library(
     file: Optional[UploadFile] = File(None),
     session_id: Optional[str] = Form(None),
     name: Optional[str] = Form(None),
-    bank_name: Optional[str] = Form("General"),
+    bank_name: Optional[str] = Form("Default"),
     current_user: Optional[User] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db)
 ):
     template_name = name
-    resolved_bank = (bank_name or "General").strip()
+    raw_bank = (bank_name or "Default").strip()
+    resolved_bank = "Default" if raw_bank in ("General", "Default", "", "none", "null") else raw_bank
     template_bytes = None
     fields_json = None
     table_groups_json = None
@@ -223,17 +237,15 @@ async def save_template_to_library(
         fields_list = json.loads(fields_json)
         table_groups_list = json.loads(table_groups_json)
         sample_text = " ".join([f.get("paragraph_context", "") for f in fields_list[:12]])
-        d_bank, d_type = detect_bank_and_doc_type(sample_text, sess.template_filename or "")
+        _, d_type = detect_bank_and_doc_type(sample_text, sess.template_filename or "")
         if not template_name or "_completed" in template_name.lower() or "muthulakshmi" in template_name.lower():
             template_name = generate_smart_template_name(
-                bank=resolved_bank if resolved_bank != "General" else d_bank,
+                bank=resolved_bank if resolved_bank != "Default" else "",
                 doc_type=d_type,
                 original_filename=sess.template_filename or ""
             )
         else:
             template_name = template_name.strip()
-        if resolved_bank == "General" and d_bank:
-            resolved_bank = d_bank
 
         template_bytes = sess.template_bytes
         fields_count = len(fields_list)
@@ -251,17 +263,15 @@ async def save_template_to_library(
         table_groups_count = len(table_groups)
 
         sample_text = " ".join([f.paragraph_context for f in fields[:12]])
-        d_bank, d_type = detect_bank_and_doc_type(sample_text, file.filename)
+        _, d_type = detect_bank_and_doc_type(sample_text, file.filename)
         if not template_name or template_name == file.filename or template_name.lower().startswith("template"):
             template_name = generate_smart_template_name(
-                bank=resolved_bank if resolved_bank != "General" else d_bank,
+                bank=resolved_bank if resolved_bank != "Default" else "",
                 doc_type=d_type,
                 original_filename=file.filename
             )
         else:
             template_name = template_name.strip()
-        if resolved_bank == "General" and d_bank:
-            resolved_bank = d_bank
 
     else:
         raise HTTPException(status_code=400, detail="Either file upload or session_id must be provided.")
@@ -284,7 +294,7 @@ async def save_template_to_library(
     return TemplateSummaryResponse(
         id=item.id,
         name=item.name,
-        bank_name=item.bank_name,
+        bank_name=normalize_bank_name(item.bank_name),
         created_at=item.created_at.isoformat() if item.created_at else "",
         fields_count=item.fields_count,
         table_groups_count=item.table_groups_count
@@ -306,15 +316,19 @@ async def rename_template(
 
     if payload.name is not None and payload.name.strip():
         item.name = payload.name.strip()
-    if payload.bank_name is not None and payload.bank_name.strip():
-        item.bank_name = payload.bank_name.strip()
+    if payload.bank_name is not None:
+        val = payload.bank_name.strip()
+        if not val or val.lower() in ("default", "general", "none", "null", "remove", "ungroup"):
+            item.bank_name = "Default"
+        else:
+            item.bank_name = val
 
     await db.commit()
 
     return TemplateSummaryResponse(
         id=item.id,
         name=item.name,
-        bank_name=item.bank_name or "General",
+        bank_name=normalize_bank_name(item.bank_name),
         created_at=item.created_at.isoformat() if item.created_at else "",
         fields_count=item.fields_count,
         table_groups_count=item.table_groups_count
@@ -364,7 +378,7 @@ async def delete_template(
 class TemplateDetailResponse(BaseModel):
     id: str
     name: str
-    bank_name: str = "General"
+    bank_name: str = "Default"
     created_at: str
     fields_count: int
     table_groups_count: int
@@ -386,7 +400,7 @@ async def get_template_detail(
     return TemplateDetailResponse(
         id=item.id,
         name=item.name,
-        bank_name=item.bank_name or "General",
+        bank_name=normalize_bank_name(item.bank_name),
         created_at=item.created_at.isoformat() if item.created_at else "",
         fields_count=item.fields_count,
         table_groups_count=item.table_groups_count,
@@ -432,7 +446,7 @@ async def seed_default_templates(
         TemplateSummaryResponse(
             id=item.id,
             name=item.name,
-            bank_name=item.bank_name or "General",
+            bank_name=normalize_bank_name(item.bank_name),
             created_at=item.created_at.isoformat() if item.created_at else "",
             fields_count=item.fields_count,
             table_groups_count=item.table_groups_count
@@ -479,7 +493,7 @@ async def use_template_in_new_session(
     return UseTemplateResponse(
         session_id=session_id,
         template_filename=item.name,
-        bank_name=item.bank_name or "General",
+        bank_name=normalize_bank_name(item.bank_name),
         fields_count=item.fields_count,
         table_groups_count=item.table_groups_count,
         fields=fields_parsed,

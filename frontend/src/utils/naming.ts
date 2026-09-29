@@ -121,7 +121,7 @@ export function generateSmartTemplateName(params: {
   const sampleText = fields.slice(0, 10).map((f) => f.paragraph_context).join(' ');
   const detected = detectBankAndDocType(sampleText, templateFilename);
   
-  const bank = bankName && bankName !== 'General' ? bankName : detected.bank;
+  const bank = bankName && bankName !== 'General' && bankName !== 'Default' ? bankName : '';
   const docType = detected.docType || 'Legal Opinion';
   
   const name = bank ? `${bank} ${docType} Template.docx` : `${docType} Template.docx`;
@@ -170,7 +170,7 @@ export function generateSmartDocName(params: {
   // 2. Detect bank and document type
   const sampleText = fields.slice(0, 10).map((f) => f.paragraph_context).join(' ');
   const detected = detectBankAndDocType(sampleText, templateFilename);
-  const bank = bankName && bankName !== 'General' ? bankName : detected.bank;
+  const bank = bankName && bankName !== 'General' && bankName !== 'Default' ? bankName : '';
   
   // Normalize bank for filename (e.g. 'Canara Bank' -> 'Canara_Bank', 'State Bank of India' -> 'SBI')
   let bankToken = '';
