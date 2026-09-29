@@ -2,8 +2,6 @@ services:
   - type: web
     name: lextitle-ai
     runtime: docker
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
     plan: free
     region: singapore
     healthCheckPath: /health
