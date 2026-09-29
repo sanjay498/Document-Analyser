@@ -46,6 +46,7 @@ import type {
   QuestionAnswer,
 } from './types';
 import { Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 
 export const App: React.FC = () => {
   const [sessionId, setSessionId] = useState<string>('');
@@ -719,6 +720,7 @@ export const App: React.FC = () => {
           </div>
         </div>
       </footer>
+      <SpeedInsights />
     </div>
   );
 };
