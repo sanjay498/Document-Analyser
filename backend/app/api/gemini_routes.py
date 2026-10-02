@@ -68,12 +68,15 @@ async def diagnose_ai():
         return {"status": "error", "message": "Neither GEMINI_API_KEY nor GOOGLE_API_KEY is configured in backend environment."}
 
     masked_key = f"{key[:4]}...{key[-4:]}" if len(key) > 8 else "***"
-    models_to_test = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-1.5-pro"]
+    models_to_test = ["gemini-3.8-flash", "gemini-3.8-flash-lite", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.0-flash"]
     diagnostics = {}
 
     import httpx
     for model in models_to_test:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+        headers = {"Content-Type": "application/json"}
+        if key.startswith("AQ.") or key.startswith("ya29."):
+            headers["Authorization"] = f"Bearer {key}"
         
         # Test A: Standard payload without thinkingConfig
         payload_std = {
@@ -90,12 +93,12 @@ async def diagnose_ai():
         model_res = {}
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                resp_std = await client.post(url, json=payload_std)
+                resp_std = await client.post(url, json=payload_std, headers=headers)
                 model_res["standard_call"] = {
                     "status_code": resp_std.status_code,
                     "body": resp_std.json() if resp_std.status_code == 200 else resp_text_clean(resp_std.text)
                 }
-                resp_th = await client.post(url, json=payload_thinking)
+                resp_th = await client.post(url, json=payload_thinking, headers=headers)
                 model_res["thinking_call"] = {
                     "status_code": resp_th.status_code,
                     "body": resp_th.json() if resp_th.status_code == 200 else resp_text_clean(resp_th.text)

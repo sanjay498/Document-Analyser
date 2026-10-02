@@ -2792,10 +2792,13 @@ async def call_llm_universal(
     # 0. Google Gemini API (Verified active models: gemini-2.5-flash, gemini-2.5-flash-lite, gemini-2.0-flash)
     if gemini_key and not (wants_groq_specifically or wants_claude_specifically or wants_openai_specifically or (wants_nemotron_specifically and nvidia_key)):
         active_gemini_models = [
-            "gemini-2.5-flash",          # Primary: ultra-fast hybrid reasoning
-            "gemini-2.5-flash-lite",     # High-throughput lite model
-            "gemini-2.0-flash",          # Fast, reliable multimodal
-            "gemini-1.5-flash",          # Stable production fallback
+            "gemini-3.8-flash",          # Primary: latest Gemini 3.8 hybrid reasoning
+            "gemini-3.8-flash-lite",     # High-throughput 3.8 lite model
+            "gemini-3.5-flash",          # Fallback
+            "gemini-2.5-flash",          # Fallback
+            "gemini-2.5-flash-lite",     # Fallback
+            "gemini-2.0-flash",          # Fallback
+            "gemini-1.5-flash",          # Stable fallback
             "gemini-flash-latest",       # Alias fallback
         ]
         requested_gm = (model or "").replace("gemini/", "").strip()
@@ -3406,7 +3409,7 @@ async def validate_google_api_key(key: Optional[str] = None) -> Dict[str, Any]:
     if not target_key:
         return {"valid": False, "error": "No Google/Gemini API key provided or configured."}
 
-    test_models = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"]
+    test_models = ["gemini-3.8-flash", "gemini-3.8-flash-lite", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"]
     payload = {
         "contents": [{"parts": [{"text": "Respond with JSON: {\"status\": \"ok\"}"}]}],
         "generationConfig": {

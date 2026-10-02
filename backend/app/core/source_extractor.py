@@ -146,6 +146,9 @@ def run_gemini_multimodal_ocr(image: Image.Image, api_key: Optional[str] = None)
     }
 
     models_to_try = [
+        "gemini-3.8-flash",
+        "gemini-3.8-flash-lite",
+        "gemini-3.5-flash",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
         "gemini-2.0-flash",
