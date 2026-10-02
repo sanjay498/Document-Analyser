@@ -58,6 +58,69 @@ async def get_ai_status():
     )
 
 
+@router.get("/diagnose")
+async def diagnose_ai():
+    """
+    Live diagnostic endpoint to verify Google Gemini API connectivity and credentials.
+    """
+    key = gemini_service.api_key
+    if not key:
+        return {"status": "error", "message": "Neither GEMINI_API_KEY nor GOOGLE_API_KEY is configured in backend environment."}
+
+    masked_key = f"{key[:4]}...{key[-4:]}" if len(key) > 8 else "***"
+    models_to_test = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-1.5-pro"]
+    diagnostics = {}
+
+    import httpx
+    for model in models_to_test:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+        
+        # Test A: Standard payload without thinkingConfig
+        payload_std = {
+            "contents": [{"parts": [{"text": "Reply with single word: OK"}]}],
+            "generationConfig": {"temperature": 0.0, "maxOutputTokens": 10}
+        }
+        
+        # Test B: Payload with thinkingBudget: 0
+        payload_thinking = {
+            "contents": [{"parts": [{"text": "Reply with single word: OK"}]}],
+            "generationConfig": {"temperature": 0.0, "maxOutputTokens": 10, "thinkingConfig": {"thinkingBudget": 0}}
+        }
+
+        model_res = {}
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp_std = await client.post(url, json=payload_std)
+                model_res["standard_call"] = {
+                    "status_code": resp_std.status_code,
+                    "body": resp_std.json() if resp_std.status_code == 200 else resp_text_clean(resp_std.text)
+                }
+                resp_th = await client.post(url, json=payload_thinking)
+                model_res["thinking_call"] = {
+                    "status_code": resp_th.status_code,
+                    "body": resp_th.json() if resp_th.status_code == 200 else resp_text_clean(resp_th.text)
+                }
+        except Exception as e:
+            model_res["error"] = str(e)
+
+        diagnostics[model] = model_res
+
+    return {
+        "status": "tested",
+        "api_key_configured": True,
+        "api_key_preview": masked_key,
+        "diagnostics": diagnostics
+    }
+
+
+def resp_text_clean(text: str) -> Any:
+    try:
+        import json
+        return json.loads(text)
+    except:
+        return text[:300]
+
+
 @router.post(
     "/extract",
     dependencies=[Depends(rate_limit(max_requests=20, window_seconds=60, scope="ai_extract"))]
