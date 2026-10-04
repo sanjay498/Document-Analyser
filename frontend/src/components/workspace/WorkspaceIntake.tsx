@@ -36,6 +36,7 @@ import {
   checkExistingClient,
   createClient,
   startScrutinyForClient,
+  linkClientToSession,
   getClients
 } from '../../services/api';
 import {
@@ -189,8 +190,8 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
     }
   };
 
-  const hasConfiguredSession = Boolean(templateFilename);
-  const canRunScrutiny = Boolean(templateFilename && sources.length > 0);
+  const hasConfiguredSession = Boolean(templateFilename && activeClient);
+  const canRunScrutiny = Boolean(templateFilename && activeClient && sources.length > 0);
 
   // Unified File Drop Handler
   const handleDrop = (e: React.DragEvent) => {
@@ -201,7 +202,7 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
     if (files.length === 0) return;
 
     if (hasConfiguredSession) {
-      // Session already configured, dropped files are deeds
+      // Session already configured with client & template, dropped files are deeds
       onUploadSources(files);
     } else {
       // Not yet configured, check if user dropped a template .docx
@@ -268,8 +269,9 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
     e.preventDefault();
     setClientFormError(null);
 
-    if (!selectedTemplate) {
-      setClientFormError('Please select a template first.');
+    const targetTemplate = selectedTemplate || templates.find((t) => t.name === templateFilename);
+    if (!targetTemplate && !sessionId) {
+      setClientFormError('Please select an opinion template first.');
       return;
     }
 
@@ -304,8 +306,13 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
         nature_of_loan: clientNatureOfLoan,
       });
 
-      // Step 3 & 6: Start new scrutiny session linked to client and template
-      const res = await startScrutinyForClient(newClient.id, selectedTemplate.id);
+      // Step 3 & 6: Start new scrutiny session or link active session
+      let res: StartScrutinyResponse;
+      if (targetTemplate?.id) {
+        res = await startScrutinyForClient(newClient.id, targetTemplate.id);
+      } else {
+        res = await linkClientToSession(newClient.id, sessionId, clientNatureOfLoan);
+      }
       onScrutinySessionReady(res);
 
       // Clean up intake state
@@ -325,10 +332,16 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
 
   // Re-use existing client chosen from duplicate check
   const handleUseExistingClientMatch = async (client: Client) => {
-    if (!selectedTemplate) return;
+    const targetTemplate = selectedTemplate || templates.find((t) => t.name === templateFilename);
+    if (!targetTemplate && !sessionId) return;
     setIsSubmittingClient(true);
     try {
-      const res = await startScrutinyForClient(client.id, selectedTemplate.id);
+      let res: StartScrutinyResponse;
+      if (targetTemplate?.id) {
+        res = await startScrutinyForClient(client.id, targetTemplate.id);
+      } else {
+        res = await linkClientToSession(client.id, sessionId, clientNatureOfLoan);
+      }
       onScrutinySessionReady(res);
       setSelectedTemplate(null);
       setExistingClientMatch(null);
@@ -406,6 +419,10 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
         <div className="space-y-6">
           {/* Screen Title */}
           <div className="text-center space-y-2 pt-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold mb-1">
+              <CheckCircle className="w-3.5 h-3.5" />
+              <span>Step 3 of 3: Deed Upload & AI Scrutiny</span>
+            </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
               Documents Ready for Title Scrutiny
             </h1>
@@ -726,7 +743,7 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
             </button>
           </div>
         </div>
-      ) : selectedTemplate ? (
+      ) : (selectedTemplate || templateFilename) && !activeClient ? (
         /* ========================================================
             FLOW BRANCH 2: CLIENT DETAILS FORM (Step 2 of Scrutiny Intake)
             (Template is selected, User enters client details)
@@ -739,6 +756,7 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
                 type="button"
                 onClick={() => {
                   setSelectedTemplate(null);
+                  if (templateFilename) onClearTemplate();
                   setExistingClientMatch(null);
                   setClientFormError(null);
                 }}
@@ -748,13 +766,13 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
                 <span>Back to Template Selection</span>
               </button>
               <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-                <span>Client Details</span>
+                <span>Client Details & Loan Classification</span>
                 <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-amber-400/10 text-amber-300 border border-amber-400/20">
-                  Step 2 of 2
+                  Step 2 of 3
                 </span>
               </h2>
               <p className="text-xs text-slate-400">
-                Enter client information to register this scrutiny in the backend database.
+                Enter client information and loan classification model before proceeding to deed upload.
               </p>
             </div>
 
@@ -765,16 +783,16 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
               </div>
               <div className="text-xs min-w-0 flex-1">
                 <span className="text-[10px] uppercase font-semibold text-slate-500 block">Selected Template</span>
-                <p className="font-bold text-white text-xs sm:text-sm break-words" title={selectedTemplate.name}>
-                  {selectedTemplate.name}
+                <p className="font-bold text-white text-xs sm:text-sm break-words" title={selectedTemplate?.name || templateFilename || 'Opinion Template'}>
+                  {selectedTemplate?.name || templateFilename || 'Opinion Template'}
                 </p>
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className="text-[10px] text-amber-300 font-medium">
-                    {selectedTemplate.fields_count} variables
+                    {selectedTemplate?.fields_count ?? templateFieldsCount} variables
                   </span>
-                  {selectedTemplate.bank_name && (
+                  {(selectedTemplate?.bank_name || 'General') !== 'General' && (
                     <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.2 rounded">
-                      {selectedTemplate.bank_name}
+                      {selectedTemplate?.bank_name}
                     </span>
                   )}
                 </div>
@@ -1010,7 +1028,10 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
               <div className="pt-4 border-t border-slate-800 flex items-center justify-between gap-3">
                 <button
                   type="button"
-                  onClick={() => setSelectedTemplate(null)}
+                  onClick={() => {
+                    setSelectedTemplate(null);
+                    if (templateFilename) onClearTemplate();
+                  }}
                   className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-colors cursor-pointer"
                 >
                   Cancel
@@ -1024,11 +1045,11 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
                   {isSubmittingClient ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>Saving Client & Starting Scrutiny...</span>
+                      <span>Saving Client & Proceeding...</span>
                     </>
                   ) : (
                     <>
-                      <span>Start Scrutiny</span>
+                      <span>Confirm Client & Proceed to Upload Deeds</span>
                       <ArrowRight className="w-4 h-4 stroke-[2.5]" />
                     </>
                   )}
@@ -1045,6 +1066,9 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
         <div className="space-y-6">
           {/* Header */}
           <div className="text-center space-y-2 pt-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/10 border border-amber-400/20 text-amber-400 text-xs font-semibold mb-1">
+              <span>Step 1 of 3: Choose Opinion Template</span>
+            </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
               Create New Scrutiny
             </h1>

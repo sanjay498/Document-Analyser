@@ -411,3 +411,43 @@ async def test_delete_client_workflow():
         # 8. Deleting again returns 404
         res_del_again = await client.delete(f"/api/clients/{client_id}")
         assert res_del_again.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_link_client_to_session():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # 1. Create a session first (e.g. from template upload)
+        res_sess = await client.post("/api/sessions")
+        assert res_sess.status_code == 200
+        session_id = res_sess.json()["session_id"]
+
+        # 2. Create a client
+        res_c = await client.post("/api/clients", json={
+            "name": "Link Session Client",
+            "phone": "+91 99999 11111",
+            "email": "link_session@test.org",
+            "title": "Title Scrutiny for Link Session",
+            "nature_of_loan": "House Model"
+        })
+        assert res_c.status_code == 200
+        client_id = res_c.json()["id"]
+
+        # 3. Link client to session
+        res_link = await client.post(
+            f"/api/clients/{client_id}/link-session/{session_id}",
+            json={"nature_of_loan": "Agri Model"}
+        )
+        assert res_link.status_code == 200
+        data = res_link.json()
+        assert data["session_id"] == session_id
+        assert data["client_id"] == client_id
+        assert data["nature_of_loan"] == "Agri Model"
+        assert data["client"]["name"] == "Link Session Client"
+        assert data["client"]["title"] == "Title Scrutiny for Link Session"
+
+        # 4. Verify session state reflects client
+        res_check = await client.get(f"/api/sessions/{session_id}")
+        assert res_check.status_code == 200
+        assert res_check.json()["client_id"] == client_id
+        assert res_check.json()["nature_of_loan"] == "Agri Model"
+

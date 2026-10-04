@@ -628,7 +628,72 @@ async def start_scrutiny_for_client(
             phone=client.phone,
             email=client.email,
             title=client.title,
-            nature_of_loan=client.nature_of_loan or DEFAULT_LOAN_NATURE,
+            nature_of_loan=chosen_nature,
+            created_at=client.created_at.isoformat() if client.created_at else "",
+            updated_at=client.updated_at.isoformat() if client.updated_at else "",
+            scrutiny_count=1
+        )
+    )
+
+
+class LinkSessionRequest(BaseModel):
+    nature_of_loan: Optional[str] = None
+
+
+@router.post("/{client_id}/link-session/{session_id}", response_model=StartScrutinyResponse)
+async def link_client_to_session(
+    client_id: str,
+    session_id: str,
+    payload: Optional[LinkSessionRequest] = None,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Associates an active session with a registered client and updates the loan nature.
+    """
+    stmt_c = select(Client).where(Client.id == client_id)
+    res_c = await db.execute(stmt_c)
+    client = res_c.scalar_one_or_none()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    stmt_s = select(GenerationSession).where(GenerationSession.id == session_id)
+    res_s = await db.execute(stmt_s)
+    session = res_s.scalar_one_or_none()
+    if not session:
+        session = GenerationSession(id=session_id)
+        db.add(session)
+
+    chosen_nature = normalize_loan_nature(
+        (payload.nature_of_loan if payload else None) or client.nature_of_loan or DEFAULT_LOAN_NATURE
+    )
+    session.client_id = client.id
+    session.nature_of_loan = chosen_nature
+    if current_user and not session.user_id:
+        session.user_id = current_user.id
+    await db.commit()
+
+    fields_parsed = json.loads(session.fields_json or "[]")
+    tables_parsed = json.loads(session.table_groups_json or "[]")
+
+    return StartScrutinyResponse(
+        session_id=session.id,
+        client_id=client.id,
+        template_id=session.template_id or "",
+        template_filename=session.template_filename or "Opinion Template",
+        bank_name="General",
+        nature_of_loan=chosen_nature,
+        fields_count=len(fields_parsed),
+        table_groups_count=len(tables_parsed),
+        fields=fields_parsed,
+        table_groups=tables_parsed,
+        client=ClientResponse(
+            id=client.id,
+            name=client.name,
+            phone=client.phone,
+            email=client.email,
+            title=client.title,
+            nature_of_loan=chosen_nature,
             created_at=client.created_at.isoformat() if client.created_at else "",
             updated_at=client.updated_at.isoformat() if client.updated_at else "",
             scrutiny_count=1

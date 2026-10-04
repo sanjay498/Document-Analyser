@@ -1735,6 +1735,27 @@ export async function deleteClient(
   return res.json();
 }
 
+export async function linkClientToSession(
+  clientId: string,
+  sessionId: string,
+  natureOfLoan?: string
+): Promise<StartScrutinyResponse> {
+  const res = await fetch(`${API_BASE}/clients/${clientId}/link-session/${sessionId}`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ nature_of_loan: natureOfLoan }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to link client to session' }));
+    throw new Error(err.detail || 'Failed to link client to session');
+  }
+  return res.json();
+}
+
+
 
 
 
