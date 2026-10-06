@@ -38,6 +38,7 @@ import { ReviewTable } from '../ReviewTable';
 export interface StepWorkflowProps {
   currentStep: 1 | 2 | 3 | 4;
   onSetStep: (step: 1 | 2 | 3 | 4) => void;
+  onBackToHome?: () => void;
 
   // Step 1: Template Selection
   templateFilename?: string;
@@ -105,6 +106,7 @@ export interface StepWorkflowProps {
 export const StepWorkflow: React.FC<StepWorkflowProps> = ({
   currentStep,
   onSetStep,
+  onBackToHome,
   templateFilename,
   fieldsCount,
   tableGroupsCount,
@@ -252,7 +254,22 @@ export const StepWorkflow: React.FC<StepWorkflowProps> = ({
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in pb-16">
+    <div className="max-w-4xl mx-auto space-y-5 animate-fade-in pb-16">
+      {/* Return to Home link */}
+      {onBackToHome && (
+        <div className="flex items-center justify-between px-1">
+          <button
+            type="button"
+            onClick={onBackToHome}
+            className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer"
+            title="Return to Home Dashboard"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 text-amber-400" />
+            <span>← Back to Home Dashboard</span>
+          </button>
+        </div>
+      )}
+
       {/* ============================================================ */}
       {/* WORKFLOW PROGRESS INDICATOR (At Top)                        */}
       {/* ✓ Template  →  ✓ Client Details  →  ③ Upload Deeds  →  ④ Opinion */}

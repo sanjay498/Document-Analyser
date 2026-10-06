@@ -15,6 +15,7 @@ import { AdminDashboardView } from './components/AdminDashboardView';
 import { ClientsView } from './components/ClientsView';
 import { BackendConfigModal } from './components/BackendConfigModal';
 import { StepWorkflow } from './components/workflow/StepWorkflow';
+import { HomeView } from './components/HomeView';
 import { DEFAULT_LOAN_NATURE } from './utils/loanModels';
 import {
   createSession,
@@ -50,7 +51,7 @@ export const App: React.FC = () => {
   const [sessionId, setSessionId] = useState<string>('');
   const [isWalletModalOpen, setIsWalletModalOpen] = useState<boolean>(false);
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [activeTab, setActiveTab] = useState<'workspace' | 'clients' | 'qa' | 'templates' | 'studio' | 'history' | 'wallet' | 'admin'>('workspace');
+  const [activeTab, setActiveTab] = useState<'home' | 'workspace' | 'clients' | 'qa' | 'templates' | 'studio' | 'history' | 'wallet' | 'admin'>('home');
   const [activeClient, setActiveClient] = useState<Client | null>(null);
   const [studioTemplateId, setStudioTemplateId] = useState<string | null>(null);
   const [isMetricsModalOpen, setIsMetricsModalOpen] = useState<boolean>(false);
@@ -137,7 +138,7 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  const handleTabChange = (tab: 'workspace' | 'clients' | 'qa' | 'templates' | 'studio' | 'history' | 'wallet' | 'admin') => {
+  const handleTabChange = (tab: 'home' | 'workspace' | 'clients' | 'qa' | 'templates' | 'studio' | 'history' | 'wallet' | 'admin') => {
     if (tab === 'qa') {
       setActiveTab('workspace');
     } else {
@@ -567,14 +568,14 @@ export const App: React.FC = () => {
         ) : activeTab === 'clients' ? (
           <ClientsView
             onStartScrutinyForClient={handleStartScrutinyForClient}
-            onNavigateToWorkspace={() => handleTabChange('workspace')}
+            onNavigateToWorkspace={() => handleTabChange('home')}
             showToast={showToast}
           />
         ) : activeTab === 'templates' ? (
           <TemplateManagerView
             currentSessionId={sessionId}
             onSelectTemplate={handleSelectTemplateFromLibrary}
-            onNavigateToWorkspace={() => setActiveTab('workspace')}
+            onNavigateToWorkspace={() => setActiveTab('home')}
             onOpenInStudio={(tId) => {
               setStudioTemplateId(tId);
               setActiveTab('studio');
@@ -584,30 +585,58 @@ export const App: React.FC = () => {
           <HighlightStudioView
             onSelectTemplate={handleSelectTemplateFromLibrary}
             onNavigateToWorkspace={() => {
-              setActiveTab('workspace');
+              setActiveTab('home');
               setWorkflowStep(1);
             }}
             initialTemplateId={studioTemplateId}
           />
         ) : activeTab === 'history' ? (
           <HistoryView
-            onNavigateToWorkspace={() => setActiveTab('workspace')}
+            onNavigateToWorkspace={() => setActiveTab('home')}
           />
         ) : activeTab === 'wallet' ? (
           <WalletView
             user={user}
-            onNavigateToWorkspace={() => setActiveTab('workspace')}
+            onNavigateToWorkspace={() => setActiveTab('home')}
             onBalanceUpdated={(newBal) => {
               if (user) {
                 setUser({ ...user, wallet_balance: newBal });
               }
             }}
           />
+        ) : activeTab === 'home' ? (
+          <HomeView
+            user={user}
+            onStartNewOpinion={handleResetSession}
+            onSelectTemplateFromLibrary={(res) => {
+              handleSelectTemplateFromLibrary(res);
+              setActiveTab('workspace');
+            }}
+            onSelectClientForOpinion={(client) => {
+              handleStartScrutinyForClient(client);
+            }}
+            onOpenInStudio={(tId) => {
+              setStudioTemplateId(tId || null);
+              setActiveTab('studio');
+            }}
+            onNavigateToTab={(t) => handleTabChange(t)}
+            onOpenWalletModal={() => setIsWalletModalOpen(true)}
+            onResumeWorkflow={() => setActiveTab('workspace')}
+            activeSessionInfo={{
+              templateFilename,
+              clientName,
+              workflowStep,
+              sourcesCount: sources.length,
+              resultsCount: results.length,
+            }}
+            showToast={showToast}
+          />
         ) : (
           /* STEP-BY-STEP WORKFLOW WIZARD: CHOOSE -> ENTER -> UPLOAD -> GENERATE */
           <StepWorkflow
             currentStep={workflowStep}
             onSetStep={(s) => setWorkflowStep(s)}
+            onBackToHome={() => setActiveTab('home')}
             templateFilename={templateFilename}
             fieldsCount={fields.length}
             tableGroupsCount={tableGroups.length}

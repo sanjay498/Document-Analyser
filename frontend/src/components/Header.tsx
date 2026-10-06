@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Home,
   Users,
   History as HistoryIcon,
   Wallet as WalletIcon,
@@ -11,8 +12,8 @@ import type { UserProfile } from '../types';
 
 interface HeaderProps {
   user: UserProfile | null;
-  activeTab: 'workspace' | 'clients' | 'qa' | 'templates' | 'studio' | 'history' | 'wallet' | 'admin';
-  onSelectTab: (tab: 'workspace' | 'clients' | 'qa' | 'templates' | 'studio' | 'history' | 'wallet' | 'admin') => void;
+  activeTab: 'home' | 'workspace' | 'clients' | 'qa' | 'templates' | 'studio' | 'history' | 'wallet' | 'admin';
+  onSelectTab: (tab: 'home' | 'workspace' | 'clients' | 'qa' | 'templates' | 'studio' | 'history' | 'wallet' | 'admin') => void;
   onOpenHelpModal: () => void;
   onOpenBatchModal?: () => void;
   onOpenMetricsModal?: () => void;
@@ -45,8 +46,9 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Brand & Status */}
         <div className="flex items-center gap-3">
           <button
-            onClick={() => onSelectTab('workspace')}
+            onClick={() => onSelectTab('home')}
             className="flex items-center gap-2 text-left group cursor-pointer focus:outline-none"
+            title="Return to Home"
           >
             {/* Minimal Legal Monogram Mark */}
             <div className="w-7 h-7 rounded border border-slate-700 bg-[#0b0f19] flex items-center justify-center text-slate-200 group-hover:border-amber-500/50 transition-colors">
@@ -74,8 +76,21 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </div>
 
-        {/* Center Primary Navigation - ONLY Client Details and History per requirements */}
+        {/* Center Primary Navigation - Home, Client Details, and History */}
         <nav className="flex items-center gap-1.5 bg-[#0b0f19] border border-slate-800/90 rounded-xl p-1" aria-label="Main Navigation">
+          <button
+            onClick={() => onSelectTab('home')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              activeTab === 'home'
+                ? 'bg-slate-800 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+            }`}
+            title="Home Dashboard"
+          >
+            <Home className="w-3.5 h-3.5 text-amber-400" />
+            <span>Home</span>
+          </button>
+
           <button
             onClick={() => onSelectTab('clients')}
             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
