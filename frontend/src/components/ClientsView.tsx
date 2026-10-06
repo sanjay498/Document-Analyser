@@ -192,20 +192,20 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Header Bar */}
-      <div className="bg-[#0b0f19] border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <span className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+            <span className="p-2.5 rounded-xl bg-amber-50 text-amber-600 border border-amber-200">
               <Users className="w-5 h-5" />
             </span>
             <div>
-              <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
                 Clients & Scrutiny Records
-                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
                   {clients.length} {clients.length === 1 ? 'Client' : 'Clients'}
                 </span>
               </h1>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-500 mt-0.5">
                 Permanently registered title scrutiny clients and their associated property records.
               </p>
             </div>
@@ -218,7 +218,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
               setAddError(null);
               setIsAddModalOpen(true);
             }}
-            className="px-4 py-2 text-xs font-bold rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 flex items-center gap-1.5 shadow-md shadow-amber-400/10 transition-colors cursor-pointer"
+            className="px-4 py-2 text-xs font-bold rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             Add Client
@@ -226,16 +226,16 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
 
           <button
             onClick={onNavigateToWorkspace}
-            className="px-3.5 py-2 text-xs font-medium rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-200 flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer"
           >
-            <FileText className="w-3.5 h-3.5 text-amber-400" />
+            <FileText className="w-3.5 h-3.5 text-amber-600" />
             Open Workspace
           </button>
         </div>
       </div>
 
       {/* Search & Filter Bar */}
-      <div className="bg-[#0b0f19] border border-slate-800 rounded-xl p-3 flex items-center justify-between gap-4">
+      <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-4 shadow-xs">
         <div className="relative flex-1 max-w-md">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
@@ -243,12 +243,12 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
             placeholder="Search clients by name, phone, email, or title..."
             value={searchQuery}
             onChange={handleSearchChange}
-            className="w-full bg-[#070a13] border border-slate-800 rounded-lg pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/60"
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500"
           />
         </div>
         <button
           onClick={() => fetchClients(searchQuery)}
-          className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+          className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
           title="Refresh client list"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
@@ -257,20 +257,20 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
 
       {/* Client List Table or Empty State */}
       {isLoading ? (
-        <div className="bg-[#0b0f19] border border-slate-800 rounded-2xl p-16 text-center">
-          <RefreshCw className="w-8 h-8 text-amber-400 animate-spin mx-auto mb-3" />
-          <p className="text-xs font-medium text-slate-300">Loading clients from database...</p>
+        <div className="bg-white border border-slate-200 rounded-2xl p-16 text-center shadow-sm">
+          <RefreshCw className="w-8 h-8 text-amber-500 animate-spin mx-auto mb-3" />
+          <p className="text-xs font-medium text-slate-600">Loading clients from database...</p>
         </div>
       ) : clients.length === 0 ? (
-        <div className="bg-[#0b0f19] border border-slate-800 rounded-2xl p-14 text-center space-y-4">
-          <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto">
+        <div className="bg-white border border-slate-200 rounded-2xl p-14 text-center space-y-4 shadow-sm">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto">
             <Users className="w-7 h-7" />
           </div>
           <div className="space-y-1 max-w-md mx-auto">
-            <h2 className="text-base font-bold text-white">
+            <h2 className="text-base font-bold text-slate-900">
               {searchQuery ? 'No matching clients found' : 'No clients in database'}
             </h2>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500">
               {searchQuery
                 ? 'Try refining your search query across name, phone, or title.'
                 : 'Clients are permanently created when you start a scrutiny from the main page, or you can register one directly.'}
@@ -279,25 +279,25 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
           <div className="pt-2 flex justify-center gap-3">
             <button
               onClick={() => setIsAddModalOpen(true)}
-              className="px-5 py-2.5 text-xs font-bold rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 transition-colors cursor-pointer"
+              className="px-5 py-2.5 text-xs font-bold rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 transition-colors cursor-pointer shadow-xs"
             >
               <Plus className="w-3.5 h-3.5 inline mr-1" />
               Add Client
             </button>
             <button
               onClick={onNavigateToWorkspace}
-              className="px-4 py-2.5 text-xs font-medium rounded-xl border border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors cursor-pointer"
+              className="px-4 py-2.5 text-xs font-semibold rounded-xl border border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer"
             >
               Go to Workspace
             </button>
           </div>
         </div>
       ) : (
-        <div className="bg-[#0b0f19] border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-800 bg-[#0e1424] text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
                   <th className="py-3 px-4">Client</th>
                   <th className="py-3 px-4">Phone</th>
                   <th className="py-3 px-4">Email</th>
@@ -308,44 +308,44 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody className="divide-y divide-slate-100">
                 {clients.map((c) => (
                   <tr
                     key={c.id}
                     onClick={() => handleOpenDetail(c)}
-                    className="hover:bg-amber-500/[0.05] cursor-pointer transition-colors group"
+                    className="hover:bg-slate-50 cursor-pointer transition-colors group"
                     title="Click client to view and download generated document"
                   >
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 font-bold flex items-center justify-center text-xs shrink-0 group-hover:border-amber-400/50 group-hover:bg-amber-500/20 transition-all">
+                        <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 font-bold flex items-center justify-center text-xs shrink-0 group-hover:bg-amber-100 transition-all">
                           {c.name.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <p className="font-semibold text-white group-hover:text-amber-300 transition-colors flex items-center gap-1.5">
+                          <p className="font-semibold text-slate-900 group-hover:text-amber-600 transition-colors flex items-center gap-1.5">
                             {c.name}
-                            <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-100 text-amber-400 -translate-x-1 group-hover:translate-x-0 transition-all" />
+                            <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-100 text-amber-500 -translate-x-1 group-hover:translate-x-0 transition-all" />
                           </p>
-                          <span className="text-[10px] text-slate-500 font-mono">
+                          <span className="text-[10px] text-slate-400 font-mono">
                             ID: {c.id.slice(0, 8)}...
                           </span>
                         </div>
                       </div>
                     </td>
-                    <td className="py-3.5 px-4 text-slate-300 font-mono text-xs">
+                    <td className="py-3.5 px-4 text-slate-700 font-mono text-xs">
                       <div className="flex items-center gap-1.5">
-                        <Phone className="w-3 h-3 text-slate-500" />
+                        <Phone className="w-3 h-3 text-slate-400" />
                         <span>{c.phone}</span>
                       </div>
                     </td>
-                    <td className="py-3.5 px-4 text-slate-300 text-xs">
+                    <td className="py-3.5 px-4 text-slate-700 text-xs">
                       <div className="flex items-center gap-1.5">
-                        <Mail className="w-3 h-3 text-slate-500" />
+                        <Mail className="w-3 h-3 text-slate-400" />
                         <span className="truncate max-w-[180px]">{c.email}</span>
                       </div>
                     </td>
                     <td className="py-3.5 px-4">
-                      <span className="inline-block px-2.5 py-1 rounded-md bg-slate-800/80 text-slate-200 border border-slate-700 text-xs font-medium max-w-[240px] truncate" title={c.title}>
+                      <span className="inline-block px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-xs font-medium max-w-[240px] truncate" title={c.title}>
                         {c.title}
                       </span>
                     </td>
@@ -356,24 +356,24 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                     </td>
                     <td className="py-3.5 px-4 whitespace-nowrap">
                       {c.scrutiny_count > 0 ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[11px] font-semibold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-semibold">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                           Document Ready ({c.scrutiny_count})
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-800/70 text-slate-400 border border-slate-700/60 text-[11px]">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 text-[11px]">
                           No Scrutiny Yet
                         </span>
                       )}
                     </td>
-                    <td className="py-3.5 px-4 text-slate-400 whitespace-nowrap">
+                    <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap">
                       {formatDate(c.created_at)}
                     </td>
                     <td className="py-3.5 px-4 text-right">
                       <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => handleOpenDetail(c)}
-                          className="px-3 py-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                          className="px-3 py-1.5 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
                           title="View scrutiny document and download"
                         >
                           <Eye className="w-3.5 h-3.5" />
@@ -381,7 +381,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                         </button>
                         <button
                           onClick={() => onStartScrutinyForClient(c)}
-                          className="px-3 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1 transition-all shadow-sm cursor-pointer"
+                          className="px-3 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1 transition-all shadow-xs cursor-pointer"
                           title="Start new scrutiny for this client"
                         >
                           <span>Start Scrutiny</span>
@@ -389,7 +389,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                         </button>
                         <button
                           onClick={() => setClientToDelete(c)}
-                          className="p-1.5 rounded-lg border border-rose-500/20 bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 hover:text-rose-300 transition-all cursor-pointer"
+                          className="p-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 transition-all cursor-pointer"
                           title={`Delete client ${c.name}`}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -416,52 +416,52 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
 
       {/* Dedicated Client Overview & Document Hub ("Another Thing") */}
       {selectedClient && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in">
-          <div className="bg-[#0b0f19] border border-slate-800 rounded-2xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/40 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
             {/* Modal Header: Client Dossier Profile */}
-            <div className="p-5 border-b border-slate-800 bg-[#0e1424] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="p-5 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3.5">
-                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-500/25 to-amber-600/10 border border-amber-500/30 text-amber-300 font-bold text-lg flex items-center justify-center shrink-0 shadow-inner">
+                <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 font-bold text-lg flex items-center justify-center shrink-0 shadow-inner">
                   {selectedClient.name.charAt(0).toUpperCase()}
                 </div>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="font-bold text-white text-base sm:text-lg tracking-tight">
+                    <h2 className="font-bold text-slate-900 text-base sm:text-lg tracking-tight">
                       {selectedClient.name}
                     </h2>
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-semibold flex items-center gap-1">
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold flex items-center gap-1">
                       <ShieldCheck className="w-3 h-3" />
                       Client Profile
                     </span>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${getLoanNatureBadgeClass(selectedClient.nature_of_loan)}`}>
                       {selectedClient.nature_of_loan || DEFAULT_LOAN_NATURE}
                     </span>
-                    <span className="text-[11px] text-slate-500 font-mono">
+                    <span className="text-[11px] text-slate-400 font-mono">
                       ID: {selectedClient.id.slice(0, 8)}...
                     </span>
                   </div>
-                  <p className="text-xs text-amber-300/90 font-medium mt-0.5">
+                  <p className="text-xs text-amber-700 font-medium mt-0.5">
                     {selectedClient.title}
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center gap-3">
-                <div className="hidden md:flex items-center gap-3 text-[11px] text-slate-400 bg-slate-900/60 px-3 py-1.5 rounded-lg border border-slate-800">
+                <div className="hidden md:flex items-center gap-3 text-[11px] text-slate-600 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-xs">
                   <div className="flex items-center gap-1">
-                    <Phone className="w-3 h-3 text-slate-500" />
+                    <Phone className="w-3 h-3 text-slate-400" />
                     <span>{selectedClient.phone}</span>
                   </div>
                   <span>•</span>
                   <div className="flex items-center gap-1 truncate max-w-[160px]">
-                    <Mail className="w-3 h-3 text-slate-500" />
+                    <Mail className="w-3 h-3 text-slate-400" />
                     <span>{selectedClient.email}</span>
                   </div>
                 </div>
 
                 <button
                   onClick={() => setSelectedClient(null)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer"
                   title="Close viewer"
                 >
                   <X className="w-5 h-5" />
@@ -471,7 +471,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
 
             {/* Document Action Toolbar (Sticky) */}
             {selectedClient.scrutinies.length > 0 && (
-              <div className="px-6 py-3 border-b border-slate-800 bg-[#070a13] flex flex-wrap items-center justify-between gap-3">
+              <div className="px-6 py-3 border-b border-slate-200 bg-white flex flex-wrap items-center justify-between gap-3">
                 {/* Scrutiny Selector Tabs */}
                 <div className="flex items-center gap-2 overflow-x-auto">
                   <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-1">
@@ -834,21 +834,21 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
 
       {/* Add Client Modal */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-          <div className="bg-[#0b0f19] border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
-            <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-[#0e1424]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+            <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
               <div className="flex items-center gap-2.5">
-                <span className="p-2 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                <span className="p-2 rounded-lg bg-amber-50 text-amber-600 border border-amber-200">
                   <Users className="w-4 h-4" />
                 </span>
-                <h3 className="font-bold text-white text-sm">Register New Client</h3>
+                <h3 className="font-bold text-slate-900 text-sm">Register New Client</h3>
               </div>
               <button
                 onClick={() => {
                   setIsAddModalOpen(false);
                   setExistingMatch(null);
                 }}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -857,21 +857,21 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
             {existingMatch ? (
               /* Existing Client Found Prompt */
               <div className="p-6 space-y-4 text-xs">
-                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 space-y-2">
-                  <div className="flex items-center gap-2 font-bold text-amber-400 text-sm">
+                <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-amber-800 text-sm">
                     <AlertCircle className="w-4 h-4" />
                     Existing Client Found
                   </div>
-                  <p className="text-xs text-slate-300">
+                  <p className="text-xs text-slate-700">
                     A client matching this phone number or email already exists in the database:
                   </p>
-                  <div className="bg-[#070a13] p-3 rounded-lg border border-amber-500/20 text-xs space-y-1">
-                    <p className="font-bold text-white">{existingMatch.name}</p>
-                    <p className="text-slate-400">Phone: {existingMatch.phone}</p>
-                    <p className="text-slate-400">Email: {existingMatch.email}</p>
-                    <p className="text-amber-300">Title: {existingMatch.title}</p>
-                    <p className="text-slate-400">
-                      Nature of Loan: <span className="text-emerald-300">{existingMatch.nature_of_loan || DEFAULT_LOAN_NATURE}</span>
+                  <div className="bg-white p-3 rounded-lg border border-amber-200 text-xs space-y-1">
+                    <p className="font-bold text-slate-900">{existingMatch.name}</p>
+                    <p className="text-slate-600">Phone: {existingMatch.phone}</p>
+                    <p className="text-slate-600">Email: {existingMatch.email}</p>
+                    <p className="text-amber-800 font-medium">Title: {existingMatch.title}</p>
+                    <p className="text-slate-600">
+                      Nature of Loan: <span className="text-emerald-700 font-semibold">{existingMatch.nature_of_loan || DEFAULT_LOAN_NATURE}</span>
                     </p>
                   </div>
                 </div>
@@ -884,19 +884,19 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                       setExistingMatch(null);
                       onStartScrutinyForClient(c);
                     }}
-                    className="w-full py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs transition-colors cursor-pointer"
+                    className="w-full py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs transition-colors cursor-pointer shadow-xs"
                   >
                     Use Existing Client & Start Scrutiny
                   </button>
                   <button
                     onClick={(e) => handleAddSubmit(e, true)}
-                    className="w-full py-2 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-750 text-xs font-medium transition-colors cursor-pointer"
+                    className="w-full py-2 rounded-xl border border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-semibold transition-colors cursor-pointer"
                   >
                     Create New Client Anyway
                   </button>
                   <button
                     onClick={() => setExistingMatch(null)}
-                    className="w-full py-1.5 text-slate-500 hover:text-slate-300 text-xs transition-colors"
+                    className="w-full py-1.5 text-slate-500 hover:text-slate-700 text-xs transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -906,87 +906,87 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
               /* Standard Minimal Form */
               <form onSubmit={(e) => handleAddSubmit(e, false)} className="p-6 space-y-4 text-xs">
                 {addError && (
-                  <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+                  <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
                     <AlertCircle className="w-4 h-4 shrink-0" />
                     <span>{addError}</span>
                   </div>
                 )}
 
                 <div className="space-y-1.5">
-                  <label className="font-semibold text-slate-300">Client Name *</label>
+                  <label className="font-semibold text-slate-700">Client Name *</label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. K. Muthulakshmi"
                     value={newName}
                     onChange={(e) => setNewName(e.target.value)}
-                    className="w-full bg-[#070a13] border border-slate-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500/60"
+                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="font-semibold text-slate-300">Phone Number *</label>
+                  <label className="font-semibold text-slate-700">Phone Number *</label>
                   <input
                     type="tel"
                     required
                     placeholder="e.g. 9842112345"
                     value={newPhone}
                     onChange={(e) => setNewPhone(e.target.value)}
-                    className="w-full bg-[#070a13] border border-slate-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500/60"
+                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="font-semibold text-slate-300">Email Address *</label>
+                  <label className="font-semibold text-slate-700">Email Address *</label>
                   <input
                     type="email"
                     required
                     placeholder="e.g. muthulakshmi@property.org"
                     value={newEmail}
                     onChange={(e) => setNewEmail(e.target.value)}
-                    className="w-full bg-[#070a13] border border-slate-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500/60"
+                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="font-semibold text-slate-300">Title / Matter Reference *</label>
+                  <label className="font-semibold text-slate-700">Title / Matter Reference *</label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. Title Scrutiny for S.F. No. 245/1B"
                     value={newTitle}
                     onChange={(e) => setNewTitle(e.target.value)}
-                    className="w-full bg-[#070a13] border border-slate-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500/60"
+                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="font-semibold text-slate-300">Nature of Loan / Facility *</label>
+                  <label className="font-semibold text-slate-700">Nature of Loan / Facility *</label>
                   <select
                     value={newNatureOfLoan}
                     onChange={(e) => setNewNatureOfLoan(e.target.value)}
-                    className="w-full bg-[#070a13] border border-slate-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500/60 cursor-pointer"
+                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-500 cursor-pointer"
                   >
                     {LOAN_NATURE_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">
+                      <option key={opt.value} value={opt.value} className="bg-white text-slate-900">
                         {opt.label} ({opt.description})
                       </option>
                     ))}
                   </select>
                 </div>
 
-                <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2.5">
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
                   <button
                     type="button"
                     onClick={() => setIsAddModalOpen(false)}
-                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium transition-colors"
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="px-5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold transition-all shadow-md cursor-pointer disabled:opacity-50"
+                    className="px-5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
                   >
                     {isSubmitting ? 'Registering...' : 'Register Client'}
                   </button>
@@ -999,22 +999,22 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
 
       {/* Delete Client Confirmation Modal */}
       {clientToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
-          <div className="bg-[#0b0f19] border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden p-6 space-y-4">
-            <div className="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 flex items-center justify-center mx-auto shadow-inner">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden p-6 space-y-4">
+            <div className="w-12 h-12 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto shadow-inner">
               <AlertTriangle className="w-6 h-6" />
             </div>
 
             <div className="text-center space-y-1.5">
-              <h3 className="text-base font-bold text-white tracking-tight">Delete Client Record?</h3>
-              <p className="text-xs text-slate-300">
+              <h3 className="text-base font-bold text-slate-900 tracking-tight">Delete Client Record?</h3>
+              <p className="text-xs text-slate-600">
                 Are you sure you want to permanently delete client{' '}
-                <span className="text-rose-300 font-bold">"{clientToDelete.name}"</span>?
+                <span className="text-rose-600 font-bold">"{clientToDelete.name}"</span>?
               </p>
-              <div className="bg-[#070a13] p-3 rounded-xl border border-slate-800 text-[11px] text-slate-400 text-left space-y-1 mt-2">
-                <p><span className="text-slate-500 uppercase font-semibold">Phone:</span> {clientToDelete.phone}</p>
-                <p><span className="text-slate-500 uppercase font-semibold">Email:</span> {clientToDelete.email}</p>
-                <p><span className="text-slate-500 uppercase font-semibold">Matter:</span> {clientToDelete.title}</p>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-[11px] text-slate-600 text-left space-y-1 mt-2">
+                <p><span className="text-slate-400 uppercase font-semibold">Phone:</span> {clientToDelete.phone}</p>
+                <p><span className="text-slate-400 uppercase font-semibold">Email:</span> {clientToDelete.email}</p>
+                <p><span className="text-slate-400 uppercase font-semibold">Matter:</span> {clientToDelete.title}</p>
               </div>
               <p className="text-[11px] text-slate-500 pt-1">
                 This action cannot be undone. Associated scrutiny documents will remain archived.
@@ -1026,7 +1026,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                 type="button"
                 disabled={isDeleting}
                 onClick={() => setClientToDelete(null)}
-                className="flex-1 py-2.5 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-medium transition-colors cursor-pointer"
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-semibold transition-colors cursor-pointer"
               >
                 Cancel
               </button>
@@ -1034,7 +1034,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                 type="button"
                 disabled={isDeleting}
                 onClick={handleConfirmDelete}
-                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-lg shadow-rose-600/20 cursor-pointer disabled:opacity-50"
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
               >
                 {isDeleting ? (
                   <>

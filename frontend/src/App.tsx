@@ -535,7 +535,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#070a13] text-slate-100 selection:bg-amber-400 selection:text-slate-950">
+    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-amber-400 selection:text-slate-950">
       {/* Header */}
       <Header
         user={user}
@@ -787,11 +787,11 @@ export const App: React.FC = () => {
       />
 
       {/* Footer */}
-      <footer className="border-t border-slate-800/80 bg-[#070a13] py-5 text-center text-xs text-slate-500">
+      <footer className="border-t border-slate-200 bg-white py-5 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <p className="text-slate-400 font-medium">© 2026 LexTitle AI — Automated Bank Title Opinion & Legal Scrutiny Engine</p>
-          <div className="flex items-center gap-3 text-slate-400">
-            <span className="text-amber-400/90 font-semibold">Enterprise Legal AI</span>
+          <p className="text-slate-600 font-medium">© 2026 Opinion Generator — Automated Bank Title Opinion & Legal Scrutiny Engine</p>
+          <div className="flex items-center gap-3 text-slate-500">
+            <span className="text-amber-600 font-semibold">Enterprise Legal AI</span>
             <span>•</span>
             <span>Multilingual Tamil/English OCR</span>
             <span>•</span>

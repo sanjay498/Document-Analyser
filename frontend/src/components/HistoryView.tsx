@@ -84,14 +84,14 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ onNavigateToWorkspace 
   return (
     <div className="space-y-6 max-w-6xl mx-auto animate-fade-in pb-12">
       {/* Header Banner */}
-      <div className="rounded-2xl p-6 bg-[#0b0f19] border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="rounded-2xl p-6 bg-white border border-slate-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+          <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
             <History className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-base font-bold text-white tracking-tight">Generated Documents History</h1>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <h1 className="text-base font-bold text-slate-900 tracking-tight">Generated Documents History</h1>
+            <p className="text-xs text-slate-500 mt-0.5">
               Complete audit trail of all finalized documents with source citations and instant re-download links.
             </p>
           </div>
@@ -100,7 +100,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ onNavigateToWorkspace 
         {historyList.length > 0 && (
           <button
             onClick={handleClearAll}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-rose-950/30 hover:bg-rose-900/40 border border-rose-500/30 text-rose-300 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 transition-colors cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span>Clear All History</span>
@@ -113,12 +113,12 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ onNavigateToWorkspace 
         <div
           className={`p-3.5 rounded-xl border text-xs font-medium flex items-center justify-between animate-slide-up ${
             message.type === 'success'
-              ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-300'
-              : 'bg-rose-950/30 border-rose-500/30 text-rose-300'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+              : 'bg-rose-50 border-rose-200 text-rose-800'
           }`}
         >
           <span>{message.text}</span>
-          <button onClick={() => setMessage(null)} className="text-slate-400 hover:text-white text-xs cursor-pointer">
+          <button onClick={() => setMessage(null)} className="text-slate-400 hover:text-slate-700 text-xs cursor-pointer">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -127,38 +127,38 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ onNavigateToWorkspace 
       {/* Search Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Search by template or source document..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+            className="w-full pl-9 pr-4 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500 shadow-xs"
           />
         </div>
 
-        <span className="text-xs text-slate-400">
-          Showing <strong className="text-slate-200">{filteredHistory.length}</strong> of {historyList.length} documents
+        <span className="text-xs text-slate-500">
+          Showing <strong className="text-slate-900">{filteredHistory.length}</strong> of {historyList.length} documents
         </span>
       </div>
 
       {/* History List */}
       {isLoading ? (
-        <div className="py-20 text-center text-xs text-slate-400">Loading document generation audit log...</div>
+        <div className="py-20 text-center text-xs text-slate-500">Loading document generation audit log...</div>
       ) : filteredHistory.length === 0 ? (
-        <div className="rounded-2xl p-12 text-center border border-slate-800 bg-[#0b0f19] space-y-4">
+        <div className="rounded-2xl p-12 text-center border border-slate-200 bg-white shadow-sm space-y-4">
           <HistoryEmptyIllustration size={100} className="mx-auto opacity-80" />
           <div>
-            <h3 className="text-sm font-bold text-white">No Past Scrutiny Reports Found</h3>
-            <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto leading-relaxed">
-              Documents generated in your workspace will be securely archived here with full source citations.
+            <h3 className="text-sm font-bold text-slate-900">No Past Scrutiny Reports Found</h3>
+            <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto leading-relaxed">
+              Documents generated in your workflow will be securely archived here with full source citations.
             </p>
           </div>
           <button
             onClick={onNavigateToWorkspace}
-            className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-400 hover:bg-amber-300 text-slate-950 transition-all cursor-pointer shadow-sm inline-flex items-center gap-1.5"
+            className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-400 hover:bg-amber-300 text-slate-950 transition-all cursor-pointer shadow-xs inline-flex items-center gap-1.5"
           >
-            <span>Open Document Workspace</span>
+            <span>Open Document Workflow</span>
           </button>
         </div>
       ) : (
@@ -166,25 +166,25 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ onNavigateToWorkspace 
           {filteredHistory.map((h) => (
             <div
               key={h.id}
-              className="rounded-2xl p-4 bg-[#0b0f19] border border-slate-800 hover:border-slate-700 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4 group"
+              className="rounded-2xl p-4 bg-white border border-slate-200 hover:border-slate-300 shadow-xs transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4 group"
             >
               <div className="flex items-start gap-3.5 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0 mt-0.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700 shrink-0 mt-0.5">
                   <FileCheck className="w-4 h-4" />
                 </div>
                 <div className="min-w-0 space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-xs font-bold text-white truncate max-w-md" title={h.template_filename}>
+                    <h3 className="text-xs font-bold text-slate-900 truncate max-w-md" title={h.template_filename}>
                       {h.template_filename}
                     </h3>
-                    <span className="px-2 py-0.2 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
                       <CheckCircle2 className="w-3 h-3" /> Generated
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-3 flex-wrap text-[11px] text-slate-400">
-                    <span className="flex items-center gap-1 text-slate-400">
-                      <Calendar className="w-3 h-3 text-slate-500" />
+                  <div className="flex items-center gap-3 flex-wrap text-[11px] text-slate-500">
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-slate-400" />
                       {new Date(h.generated_at).toLocaleString(undefined, {
                         year: 'numeric',
                         month: 'short',
@@ -193,14 +193,14 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ onNavigateToWorkspace 
                         minute: '2-digit'
                       })}
                     </span>
-                    <span className="text-slate-600">•</span>
-                    <span className="font-mono text-slate-300 font-medium">
+                    <span className="text-slate-300">•</span>
+                    <span className="font-mono text-slate-700 font-medium">
                       {h.resolved_fields_count} Fields Filled
                     </span>
                     {h.sources_summary.length > 0 && (
                       <>
-                        <span className="text-slate-600">•</span>
-                        <span className="text-slate-400 truncate max-w-xs" title={h.sources_summary.join(', ')}>
+                        <span className="text-slate-300">•</span>
+                        <span className="text-slate-500 truncate max-w-xs" title={h.sources_summary.join(', ')}>
                           Sources: {h.sources_summary.join(', ')}
                         </span>
                       </>
@@ -210,10 +210,10 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ onNavigateToWorkspace 
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center gap-2 w-full md:w-auto justify-end pt-2 md:pt-0 border-t md:border-t-0 border-slate-800">
+              <div className="flex items-center gap-2 w-full md:w-auto justify-end pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
                 <button
                   onClick={() => handleInspectDetail(h.id)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
                 >
                   <Eye className="w-3.5 h-3.5" />
                   <span>Audit Trail</span>
@@ -222,7 +222,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ onNavigateToWorkspace 
                 <a
                   href={`${h.download_url}?format=docx`}
                   download
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-400 hover:bg-amber-300 text-slate-950 transition-all cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-400 hover:bg-amber-300 text-slate-950 transition-all cursor-pointer shadow-xs"
                   title="Download Microsoft Word .docx"
                 >
                   <Download className="w-3.5 h-3.5" />
@@ -232,7 +232,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ onNavigateToWorkspace 
                 <a
                   href={`${h.download_url}?format=pdf`}
                   download
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 transition-all cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 transition-all cursor-pointer shadow-xs"
                   title="Download PDF"
                 >
                   <Download className="w-3.5 h-3.5" />
@@ -241,7 +241,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ onNavigateToWorkspace 
 
                 <button
                   onClick={() => handleDeleteItem(h.id, h.template_filename)}
-                  className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/20 transition-colors cursor-pointer"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                   title="Delete record"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -254,15 +254,15 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ onNavigateToWorkspace 
 
       {/* History Detail Audit Modal */}
       {selectedHistory && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-3xl rounded-2xl border border-slate-800 bg-[#0b0f19] shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-scale-up">
-            <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-[#070a13]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fade-in">
+          <div className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-scale-up">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center">
                   <FileCheck className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-xs font-bold text-white">{selectedHistory.template_filename}</h3>
+                  <h3 className="text-xs font-bold text-slate-900">{selectedHistory.template_filename}</h3>
                   <p className="text-[11px] text-slate-500">
                     Generated on {new Date(selectedHistory.generated_at).toLocaleString()}
                   </p>
@@ -270,23 +270,23 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ onNavigateToWorkspace 
               </div>
               <button
                 onClick={() => setSelectedHistory(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6 overflow-y-auto flex-1 space-y-5 text-xs bg-slate-950/40">
+            <div className="p-6 overflow-y-auto flex-1 space-y-5 text-xs bg-white">
               {/* Field Values Breakdown */}
               <div className="space-y-2">
-                <h4 className="font-semibold text-slate-400 uppercase tracking-wider text-[10px]">
+                <h4 className="font-semibold text-slate-500 uppercase tracking-wider text-[10px]">
                   Populated Field Values ({Object.keys(selectedHistory.field_values).length})
                 </h4>
-                <div className="rounded-xl border border-slate-800 overflow-hidden bg-[#070a13] divide-y divide-slate-800">
+                <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50 divide-y divide-slate-200">
                   {Object.entries(selectedHistory.field_values).map(([fieldId, val], idx) => (
                     <div key={idx} className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <span className="font-mono text-slate-400 text-[11px]">{fieldId}</span>
-                      <span className="font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 text-left sm:text-right max-w-md truncate">
+                      <span className="font-mono text-slate-600 text-[11px]">{fieldId}</span>
+                      <span className="font-medium text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-left sm:text-right max-w-md truncate">
                         {val !== null && val !== undefined ? String(val) : '<Left Blank>'}
                       </span>
                     </div>
@@ -297,16 +297,16 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ onNavigateToWorkspace 
               {/* Dynamic Table Records */}
               {Object.keys(selectedHistory.table_records).length > 0 && (
                 <div className="space-y-2">
-                  <h4 className="font-semibold text-slate-400 uppercase tracking-wider text-[10px]">
+                  <h4 className="font-semibold text-slate-500 uppercase tracking-wider text-[10px]">
                     Dynamic Table Rows Injected
                   </h4>
                   {Object.entries(selectedHistory.table_records).map(([groupId, rows], idx) => (
-                    <div key={idx} className="p-3 rounded-xl bg-[#070a13] border border-slate-800 space-y-2">
-                      <p className="font-semibold text-slate-300">Table Group: {groupId} ({rows.length} rows)</p>
+                    <div key={idx} className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                      <p className="font-semibold text-slate-800">Table Group: {groupId} ({rows.length} rows)</p>
                       <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
                           <thead>
-                            <tr className="border-b border-slate-800 text-slate-500 text-[10px] uppercase">
+                            <tr className="border-b border-slate-200 text-slate-500 text-[10px] uppercase">
                               {rows.length > 0 && Object.keys(rows[0]).map((col, cIdx) => (
                                 <th key={cIdx} className="p-2 font-semibold">{col}</th>
                               ))}
@@ -314,9 +314,9 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ onNavigateToWorkspace 
                           </thead>
                           <tbody>
                             {rows.map((r, rIdx) => (
-                              <tr key={rIdx} className="border-b border-slate-800/50 hover:bg-slate-800/30">
+                              <tr key={rIdx} className="border-b border-slate-200/60 hover:bg-slate-100">
                                 {Object.values(r).map((cellVal: any, cIdx) => (
-                                  <td key={cIdx} className="p-2 text-slate-200">{String(cellVal)}</td>
+                                  <td key={cIdx} className="p-2 text-slate-700">{String(cellVal)}</td>
                                 ))}
                               </tr>
                             ))}
@@ -329,10 +329,10 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ onNavigateToWorkspace 
               )}
             </div>
 
-            <div className="px-6 py-3 border-t border-slate-800 bg-[#070a13] flex items-center justify-between">
+            <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
               <button
                 onClick={() => setSelectedHistory(null)}
-                className="px-3.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer"
+                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-200 hover:bg-slate-300 text-slate-700 cursor-pointer"
               >
                 Close
               </button>
@@ -340,7 +340,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ onNavigateToWorkspace 
               <a
                 href={selectedHistory.download_url}
                 download
-                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold bg-amber-400 hover:bg-amber-300 text-slate-950 cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold bg-amber-400 hover:bg-amber-300 text-slate-950 cursor-pointer shadow-xs"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>Re-Download Final .docx</span>
