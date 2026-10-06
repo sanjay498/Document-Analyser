@@ -32,6 +32,8 @@ import {
   getSessionState,
   switchBackToUser,
   getClientDetail,
+  startKeepAliveHeartbeat,
+  wakeUpBackend,
 } from './services/api';
 import type {
   HighlightedField,
@@ -82,6 +84,7 @@ export const App: React.FC = () => {
   const [isExtracting, setIsExtracting] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [isHealthOk, setIsHealthOk] = useState<boolean>(true);
+  const [backendStatus, setBackendStatus] = useState<'healthy' | 'waking' | 'offline'>('healthy');
 
   // Modals
   const [isHelpModalOpen, setIsHelpModalOpen] = useState<boolean>(false);
@@ -153,12 +156,28 @@ export const App: React.FC = () => {
     }
   };
 
-  // Initialize session & user on mount with persistence across reloads
+  // Initialize session & user on mount with persistence across reloads and 24/7 keep-alive
   useEffect(() => {
+    // Start continuous keep-alive heartbeat loop (every 3.5 min + tab resume)
+    const stopHeartbeat = startKeepAliveHeartbeat((status) => {
+      setBackendStatus(status);
+      setIsHealthOk(status === 'healthy');
+    });
+
     const init = async () => {
       try {
-        const healthRes = await getHealthStatus().catch(() => null);
-        if (healthRes) setIsHealthOk(true);
+        const healthRes = await getHealthStatus(undefined, 8000).catch(() => null);
+        if (healthRes && healthRes.status === 'healthy') {
+          setIsHealthOk(true);
+          setBackendStatus('healthy');
+        } else {
+          // If cold-started on Render, mark as waking and actively poll until ready
+          setBackendStatus('waking');
+          wakeUpBackend(60).then((ok) => {
+            setBackendStatus(ok ? 'healthy' : 'offline');
+            setIsHealthOk(ok);
+          });
+        }
 
         let myProfile = await getMeProfile();
         if (!myProfile) {
@@ -237,20 +256,14 @@ export const App: React.FC = () => {
       } catch (err) {
         console.error('Failed to initialize session', err);
         setIsHealthOk(false);
+        setBackendStatus('offline');
       }
     };
     init();
 
-    const healthInterval = setInterval(async () => {
-      try {
-        const res = await getHealthStatus();
-        setIsHealthOk(Boolean(res && res.status === 'healthy'));
-      } catch {
-        setIsHealthOk(false);
-      }
-    }, 15000);
-
-    return () => clearInterval(healthInterval);
+    return () => {
+      stopHeartbeat();
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -549,6 +562,7 @@ export const App: React.FC = () => {
         onLogout={handleLogout}
         onResetSession={handleResetSession}
         isHealthOk={isHealthOk}
+        backendStatus={backendStatus}
         onOpenBackendSettings={() => setIsBackendModalOpen(true)}
       />
 
@@ -779,9 +793,12 @@ export const App: React.FC = () => {
           showToast('Backend connected successfully!', 'success');
           try {
             const h = await getHealthStatus();
-            setIsHealthOk(Boolean(h && h.status === 'healthy'));
+            const ok = Boolean(h && h.status === 'healthy');
+            setIsHealthOk(ok);
+            setBackendStatus(ok ? 'healthy' : 'offline');
           } catch {
             setIsHealthOk(false);
+            setBackendStatus('offline');
           }
         }}
       />

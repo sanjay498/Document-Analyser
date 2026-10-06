@@ -7,6 +7,8 @@ rate limiting, and server-side Gemini service integration.
 import os
 import uuid
 import logging
+import asyncio
+import httpx
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
@@ -38,11 +40,40 @@ logging.basicConfig(
 logger = logging.getLogger("docfiller.main")
 
 
+async def _keep_alive_background_loop():
+    """
+    Periodically sends an HTTP ping to the public Render URL every 9 minutes
+    to reset Render's 15-minute inactivity shutdown timer, keeping the backend always-on.
+    """
+    external_url = os.getenv("RENDER_EXTERNAL_URL", "").strip().rstrip("/")
+    target_url = external_url or os.getenv("BACKEND_PUBLIC_URL", "https://document-analyser-1-momv.onrender.com").strip().rstrip("/")
+    ping_endpoint = f"{target_url}/api/health"
+
+    # Wait 45 seconds after initial launch before starting the loop
+    await asyncio.sleep(45)
+    logger.info(f"Started backend keep-alive loop targeting: {ping_endpoint}")
+
+    while True:
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.get(ping_endpoint)
+                logger.info(f"Keep-alive self-ping sent to {ping_endpoint} (status: {resp.status_code})")
+        except Exception as e:
+            logger.debug(f"Keep-alive ping attempt completed: {e}")
+        # Ping every 9 minutes (540 seconds), well before Render's 15-minute threshold
+        await asyncio.sleep(540)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize database tables and configurations on startup
     await init_db()
-    yield
+    # Start the keep-alive background task to keep server always awake
+    keep_alive_task = asyncio.create_task(_keep_alive_background_loop())
+    try:
+        yield
+    finally:
+        keep_alive_task.cancel()
 
 
 app = FastAPI(

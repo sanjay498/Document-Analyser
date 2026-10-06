@@ -1,0 +1,18 @@
+name: 24/7 Backend Keep-Alive
+
+on:
+  schedule:
+    # Run every 10 minutes to prevent Render free-tier idle spin-down (15 min timeout)
+    - cron: '*/10 * * * *'
+  workflow_dispatch: # Allow manual trigger anytime
+
+jobs:
+  ping:
+    name: Ping Render Backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Keep-Alive Ping
+        run: |
+          echo "Pinging backend server to keep active..."
+          curl -s -S -f -m 60 --retry 3 --retry-delay 5 "https://document-analyser-1-momv.onrender.com/api/health" || true
+          echo "Ping completed."

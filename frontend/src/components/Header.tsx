@@ -22,6 +22,7 @@ interface HeaderProps {
   onLogout?: () => void;
   onResetSession: () => void;
   isHealthOk?: boolean;
+  backendStatus?: 'healthy' | 'waking' | 'offline';
   onOpenBackendSettings?: () => void;
 }
 
@@ -35,10 +36,13 @@ export const Header: React.FC<HeaderProps> = ({
   onLogout,
   onResetSession,
   isHealthOk = true,
+  backendStatus,
   onOpenBackendSettings,
 }) => {
   const isUserAdmin = user?.role === 'ADMIN' || user?.is_admin === true;
   const displayBalance = user?.wallet_balance ?? 0.0;
+  const currentStatus: 'healthy' | 'waking' | 'offline' =
+    backendStatus || (isHealthOk ? 'healthy' : 'offline');
 
   return (
     <header className="border-b border-slate-200 bg-white sticky top-0 z-40 shadow-xs">
@@ -64,11 +68,37 @@ export const Header: React.FC<HeaderProps> = ({
             type="button"
             onClick={onOpenBackendSettings}
             className="hidden sm:inline-flex items-center gap-1.5 pl-3 border-l border-slate-200 text-[11px] text-slate-500 hover:text-slate-700 transition-colors cursor-pointer"
-            title={isHealthOk ? 'Backend connected. Click to view/configure API URL' : 'Backend offline. Click to connect your Render Web Service'}
+            title={
+              currentStatus === 'healthy'
+                ? 'Backend connected & 24/7 keep-alive active. Click to view/configure API URL'
+                : currentStatus === 'waking'
+                ? 'Backend waking up from sleep (~30s). Click to view details.'
+                : 'Backend offline or reconnecting. Click to connect your Render Web Service'
+            }
           >
-            <span className={`w-2 h-2 rounded-full ${isHealthOk ? 'bg-emerald-500' : 'bg-rose-500 animate-pulse'}`} />
-            <span className={`text-[10px] font-medium ${isHealthOk ? 'text-slate-500' : 'text-rose-600 font-semibold underline'}`}>
-              {isHealthOk ? 'System Live' : 'Offline (Click to Connect)'}
+            <span
+              className={`w-2 h-2 rounded-full ${
+                currentStatus === 'healthy'
+                  ? 'bg-emerald-500'
+                  : currentStatus === 'waking'
+                  ? 'bg-amber-500 animate-ping'
+                  : 'bg-rose-500 animate-pulse'
+              }`}
+            />
+            <span
+              className={`text-[10px] font-medium ${
+                currentStatus === 'healthy'
+                  ? 'text-slate-500'
+                  : currentStatus === 'waking'
+                  ? 'text-amber-600 font-semibold'
+                  : 'text-rose-600 font-semibold underline'
+              }`}
+            >
+              {currentStatus === 'healthy'
+                ? 'System Live'
+                : currentStatus === 'waking'
+                ? 'Waking Server...'
+                : 'Offline (Click to Connect)'}
             </span>
           </button>
         </div>

@@ -40,7 +40,7 @@ import type {
   StartScrutinyResponse,
 } from '../types';
 
-const DEFAULT_PRODUCTION_BACKEND = 'https://document-analyser-1-momv.onrender.com';
+export const DEFAULT_PRODUCTION_BACKEND = 'https://document-analyser-1-momv.onrender.com';
 
 let cachedBackendBase = (() => {
   try {
@@ -75,12 +75,62 @@ export function setBackendBaseUrl(url: string): void {
   } catch {}
 }
 
-export async function getHealthStatus(testUrl?: string): Promise<Record<string, any>> {
+/**
+ * Resilient API fetch wrapper with exponential backoff and cold-start auto-retry.
+ * Transparently absorbs Render wake-up delays (502 / 503 / 504 / network errors).
+ */
+export async function apiFetch(
+  url: string,
+  options: RequestInit = {},
+  retries = 3,
+  delayMs = 1500
+): Promise<Response> {
+  let lastError: any = null;
+  let targetUrl = url;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(targetUrl, options);
+
+      // Render cold-start status codes: 502 Bad Gateway, 503 Service Unavailable, 504 Gateway Timeout
+      if ((res.status === 502 || res.status === 503 || res.status === 504) && attempt < retries) {
+        console.warn(`[API] Backend waking up (HTTP ${res.status}). Retrying ${attempt + 1}/${retries}...`);
+        await new Promise((r) => setTimeout(r, delayMs * Math.pow(1.5, attempt)));
+        continue;
+      }
+
+      return res;
+    } catch (err: any) {
+      lastError = err;
+      if (attempt < retries) {
+        // If attempting localhost and it failed, and no custom URL is configured, fallback to production Render
+        if (!cachedBackendBase && attempt === 0 && typeof window !== 'undefined') {
+          console.log('[API] Localhost unreachable. Auto-routing to cloud Render backend...');
+          setBackendBaseUrl(DEFAULT_PRODUCTION_BACKEND);
+          if (targetUrl.startsWith('/api')) {
+            targetUrl = `${DEFAULT_PRODUCTION_BACKEND}${targetUrl}`;
+          }
+        }
+
+        console.warn(`[API] Network error (${err.message || 'Connecting...'}). Retrying ${attempt + 1}/${retries}...`);
+        await new Promise((r) => setTimeout(r, delayMs * Math.pow(1.5, attempt)));
+        continue;
+      }
+    }
+  }
+
+  throw lastError || new Error('Network request failed');
+}
+
+/**
+ * Robust health check with extended timeout to allow Render instances to complete cold-start boot.
+ */
+export async function getHealthStatus(testUrl?: string, timeoutMs = 25000): Promise<Record<string, any>> {
   const base = testUrl !== undefined ? testUrl.trim().replace(/\/$/, '') : cachedBackendBase;
   const apiBase = base ? `${base}/api` : '/api';
 
   try {
-    const res = await fetch(`${apiBase}/health`, { signal: AbortSignal.timeout(8000) });
+    const res = await fetch(`${apiBase}/health`, { signal: AbortSignal.timeout(timeoutMs) });
     if (res.ok) {
       return await res.json();
     }
@@ -90,14 +140,105 @@ export async function getHealthStatus(testUrl?: string): Promise<Record<string, 
 
   if (base) {
     try {
-      const fallback = await fetch(`${base}/health`, { signal: AbortSignal.timeout(8000) });
+      const fallback = await fetch(`${base}/health`, { signal: AbortSignal.timeout(timeoutMs) });
       if (fallback.ok) return await fallback.json();
-    } catch (e) {
-      // failed
-    }
+    } catch (e) {}
+  }
+
+  // Fallback to DEFAULT_PRODUCTION_BACKEND if not already tested
+  if (!base && DEFAULT_PRODUCTION_BACKEND) {
+    try {
+      const prodRes = await fetch(`${DEFAULT_PRODUCTION_BACKEND}/api/health`, {
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (prodRes.ok) {
+        setBackendBaseUrl(DEFAULT_PRODUCTION_BACKEND);
+        return await prodRes.json();
+      }
+    } catch (e) {}
   }
 
   throw new Error('Health check failed: Unable to reach backend server');
+}
+
+/**
+ * Actively wakes up a sleeping backend by polling with progressive backoff.
+ */
+export async function wakeUpBackend(
+  maxWaitSeconds = 60,
+  onProgress?: (elapsedSec: number, statusText: string) => void
+): Promise<boolean> {
+  const startTime = Date.now();
+  let elapsed = 0;
+
+  while (elapsed < maxWaitSeconds) {
+    try {
+      onProgress?.(elapsed, `Waking up server (${elapsed}s elapsed)...`);
+      const h = await getHealthStatus(undefined, 8000);
+      if (h && h.status === 'healthy') {
+        onProgress?.(elapsed, 'Connected!');
+        return true;
+      }
+    } catch (e) {
+      // Still waking up
+    }
+
+    await new Promise((r) => setTimeout(r, 4000));
+    elapsed = Math.round((Date.now() - startTime) / 1000);
+  }
+
+  return false;
+}
+
+/**
+ * In-browser 24/7 keep-alive heartbeat loop.
+ * Pings backend every 3.5 minutes while tab is open, preventing Render 15-min idle sleep.
+ * Also auto-pings whenever user switches back to the tab.
+ */
+let keepAliveTimer: ReturnType<typeof setInterval> | null = null;
+
+export function startKeepAliveHeartbeat(
+  onStatusChange?: (status: 'healthy' | 'waking' | 'offline') => void
+): () => void {
+  const doPing = async () => {
+    try {
+      const res = await getHealthStatus(undefined, 10000);
+      if (res && res.status === 'healthy') {
+        onStatusChange?.('healthy');
+      } else {
+        onStatusChange?.('waking');
+      }
+    } catch (e) {
+      onStatusChange?.('offline');
+    }
+  };
+
+  // Immediate ping
+  doPing();
+
+  // Heartbeat every 210 seconds (3.5 minutes - well under Render's 15-minute shutdown limit)
+  if (keepAliveTimer) clearInterval(keepAliveTimer);
+  keepAliveTimer = setInterval(doPing, 210000);
+
+  // Resume / tab focus listener: immediately wake up & verify when user returns
+  const handleVisibilityChange = () => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+      doPing();
+    }
+  };
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', doPing);
+  }
+
+  return () => {
+    if (keepAliveTimer) clearInterval(keepAliveTimer);
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', doPing);
+    }
+  };
 }
 
 export async function getSystemMetrics(): Promise<SystemMetrics> {
