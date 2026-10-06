@@ -18,7 +18,9 @@ import {
   Phone,
   Mail,
   UserCheck,
-  X
+  X,
+  Highlighter,
+  Edit3
 } from 'lucide-react';
 import type {
   ExtractedSourceDocument,
@@ -57,6 +59,7 @@ interface WorkspaceIntakeProps {
   onRemoveSource: (filename: string) => void;
   onClearTemplate: () => void;
   onOpenTemplateLibrary: () => void;
+  onOpenInStudio?: (templateId?: string) => void;
   sessionId: string;
   preferredDeedModel: string;
   onSelectDeedModel: (modelId: string) => void;
@@ -80,6 +83,7 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
   onRemoveSource,
   onClearTemplate,
   onOpenTemplateLibrary: _onOpenTemplateLibrary,
+  onOpenInStudio,
   sessionId,
   preferredDeedModel,
   onSelectDeedModel,
@@ -412,6 +416,108 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
       />
 
       {/* ========================================================
+          4-STEP TITLE SCRUTINY WORKFLOW STEPPER
+         ======================================================== */}
+      <div className="bg-[#0b0f19] border border-slate-800 rounded-2xl p-3 sm:p-4 shadow-xl">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+          {/* Step 1: Choose or Create Template */}
+          <div
+            onClick={() => {
+              if (selectedTemplate || templateFilename) {
+                setSelectedTemplate(null);
+                onClearTemplate();
+              }
+            }}
+            className={`flex items-center gap-2.5 p-2 rounded-xl transition-all ${
+              !hasConfiguredSession && !(selectedTemplate || templateFilename)
+                ? 'bg-amber-400/15 border border-amber-400/40 text-amber-300 font-bold shadow-sm'
+                : (selectedTemplate || templateFilename)
+                ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-medium cursor-pointer hover:bg-emerald-500/15'
+                : 'bg-slate-900/40 border border-slate-800 text-slate-500'
+            }`}
+            title={(selectedTemplate || templateFilename) ? 'Click to change template' : undefined}
+          >
+            <span
+              className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs shrink-0 font-bold ${
+                (selectedTemplate || templateFilename)
+                  ? 'bg-emerald-500/20 text-emerald-400'
+                  : 'bg-amber-400 text-slate-950'
+              }`}
+            >
+              {(selectedTemplate || templateFilename) ? '✓' : '1'}
+            </span>
+            <div className="min-w-0">
+              <span className="block truncate text-[10px] uppercase tracking-wider text-slate-400">Step 1</span>
+              <span className="block truncate text-xs text-white font-semibold">Template / Studio</span>
+            </div>
+          </div>
+
+          {/* Step 2: Client Creation */}
+          <div
+            className={`flex items-center gap-2.5 p-2 rounded-xl transition-all ${
+              (selectedTemplate || templateFilename) && !activeClient
+                ? 'bg-amber-400/15 border border-amber-400/40 text-amber-300 font-bold shadow-sm'
+                : activeClient
+                ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-medium'
+                : 'bg-slate-900/40 border border-slate-800 text-slate-500'
+            }`}
+          >
+            <span
+              className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs shrink-0 font-bold ${
+                activeClient
+                  ? 'bg-emerald-500/20 text-emerald-400'
+                  : (selectedTemplate || templateFilename)
+                  ? 'bg-amber-400 text-slate-950'
+                  : 'bg-slate-800 text-slate-500'
+              }`}
+            >
+              {activeClient ? '✓' : '2'}
+            </span>
+            <div className="min-w-0">
+              <span className="block truncate text-[10px] uppercase tracking-wider text-slate-400">Step 2</span>
+              <span className="block truncate text-xs text-white font-semibold">Client Creation</span>
+            </div>
+          </div>
+
+          {/* Step 3: Deeds Upload */}
+          <div
+            className={`flex items-center gap-2.5 p-2 rounded-xl transition-all ${
+              hasConfiguredSession
+                ? 'bg-amber-400/15 border border-amber-400/40 text-amber-300 font-bold shadow-sm'
+                : 'bg-slate-900/40 border border-slate-800 text-slate-500'
+            }`}
+          >
+            <span
+              className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs shrink-0 font-bold ${
+                hasConfiguredSession && sources.length > 0
+                  ? 'bg-emerald-500/20 text-emerald-400'
+                  : hasConfiguredSession
+                  ? 'bg-amber-400 text-slate-950'
+                  : 'bg-slate-800 text-slate-500'
+              }`}
+            >
+              {hasConfiguredSession && sources.length > 0 ? '✓' : '3'}
+            </span>
+            <div className="min-w-0">
+              <span className="block truncate text-[10px] uppercase tracking-wider text-slate-400">Step 3</span>
+              <span className="block truncate text-xs text-white font-semibold">Upload Deeds</span>
+            </div>
+          </div>
+
+          {/* Step 4: AI Scrutiny & Document Generation */}
+          <div className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-900/40 border border-slate-800 text-slate-500">
+            <span className="w-6 h-6 rounded-lg bg-slate-800 text-slate-500 flex items-center justify-center text-xs shrink-0 font-bold">
+              4
+            </span>
+            <div className="min-w-0">
+              <span className="block truncate text-[10px] uppercase tracking-wider text-slate-500">Step 4</span>
+              <span className="block truncate text-xs text-slate-400 font-semibold">Generate Opinion</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ========================================================
           FLOW BRANCH 1: ACTIVE CONFIGURED SCRUTINY DESK
           (Client & Template are chosen, User is uploading deeds & running AI)
          ======================================================== */}
@@ -421,7 +527,7 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
           <div className="text-center space-y-2 pt-2">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold mb-1">
               <CheckCircle className="w-3.5 h-3.5" />
-              <span>Step 3 of 3: Deed Upload & AI Scrutiny</span>
+              <span>Step 3 of 4: Deed Upload & AI Scrutiny</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
               Documents Ready for Title Scrutiny
@@ -529,17 +635,34 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
+                  <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs flex-wrap gap-2">
                     <span className="text-[11px] text-emerald-400 flex items-center gap-1 font-medium">
                       <CheckCircle className="w-3 h-3" /> Template Loaded
                     </span>
-                    <button
-                      type="button"
-                      onClick={onClearTemplate}
-                      className="text-[11px] text-slate-400 hover:text-white underline cursor-pointer"
-                    >
-                      Change Template
-                    </button>
+                    <div className="flex items-center gap-3">
+                      {onOpenInStudio && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const tId = templates.find((t) => t.name === templateFilename)?.id;
+                            if (tId) onOpenInStudio(tId);
+                            else onOpenInStudio();
+                          }}
+                          className="text-[11px] text-amber-400 hover:text-amber-300 underline cursor-pointer flex items-center gap-1 font-medium"
+                          title="Open and edit template highlights in Highlight Studio"
+                        >
+                          <Edit3 className="w-3 h-3" />
+                          <span>Edit in Studio</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={onClearTemplate}
+                        className="text-[11px] text-slate-400 hover:text-white underline cursor-pointer"
+                      >
+                        Change Template
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -768,7 +891,7 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
               <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
                 <span>Client Details & Loan Classification</span>
                 <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-amber-400/10 text-amber-300 border border-amber-400/20">
-                  Step 2 of 3
+                  Step 2 of 4
                 </span>
               </h2>
               <p className="text-xs text-slate-400">
@@ -786,7 +909,7 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
                 <p className="font-bold text-white text-xs sm:text-sm break-words" title={selectedTemplate?.name || templateFilename || 'Opinion Template'}>
                   {selectedTemplate?.name || templateFilename || 'Opinion Template'}
                 </p>
-                <div className="flex items-center gap-2 mt-0.5">
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                   <span className="text-[10px] text-amber-300 font-medium">
                     {selectedTemplate?.fields_count ?? templateFieldsCount} variables
                   </span>
@@ -794,6 +917,20 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
                     <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.2 rounded">
                       {selectedTemplate?.bank_name}
                     </span>
+                  )}
+                  {onOpenInStudio && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const tId = selectedTemplate?.id || templates.find((t) => t.name === templateFilename)?.id;
+                        if (tId) onOpenInStudio(tId);
+                        else onOpenInStudio();
+                      }}
+                      className="text-[10px] text-amber-400 hover:text-amber-300 underline inline-flex items-center gap-1 ml-auto cursor-pointer"
+                    >
+                      <Edit3 className="w-2.5 h-2.5" />
+                      <span>Edit in Studio</span>
+                    </button>
                   )}
                 </div>
               </div>
@@ -1067,17 +1204,17 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
           {/* Header */}
           <div className="text-center space-y-2 pt-2">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/10 border border-amber-400/20 text-amber-400 text-xs font-semibold mb-1">
-              <span>Step 1 of 3: Choose Opinion Template</span>
+              <span>Step 1 of 4: Choose or Create Opinion Template</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
               Create New Scrutiny
             </h1>
             <p className="text-xs sm:text-sm text-slate-400 max-w-xl mx-auto leading-relaxed">
-              Select an opinion template directly from your database or upload a new template (.docx) to begin.
+              Choose from pre-existing bank/property templates, create a new template directly in Highlight Studio, edit an existing template, or upload a .docx file.
             </p>
           </div>
 
-          {/* Template Search Bar & Upload Button (Never auto-clears typed name) */}
+          {/* Template Search Bar & Action Buttons */}
           <div className="bg-[#0b0f19] border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-xl">
             <div className="relative flex-1">
               <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -1100,12 +1237,24 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {onOpenInStudio && (
+                <button
+                  type="button"
+                  onClick={() => onOpenInStudio()}
+                  className="px-4 py-2 text-xs font-bold rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 flex items-center justify-center gap-1.5 shadow-md shadow-amber-400/20 transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                  title="Create a new template from scratch in Highlight Studio"
+                >
+                  <Highlighter className="w-3.5 h-3.5" />
+                  <span>Create in Highlight Studio</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => templateUploadInputRef.current?.click()}
                 disabled={isUploadingNewTemplate}
-                className="px-4 py-2 text-xs font-bold rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 flex items-center justify-center gap-1.5 shadow-md shadow-amber-400/10 transition-colors cursor-pointer whitespace-nowrap"
+                className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center justify-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
               >
                 {isUploadingNewTemplate ? (
                   <>
@@ -1114,7 +1263,7 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
                   </>
                 ) : (
                   <>
-                    <UploadCloud className="w-4 h-4" />
+                    <UploadCloud className="w-4 h-4 text-amber-400" />
                     <span>Upload Template (.docx)</span>
                   </>
                 )}
@@ -1167,13 +1316,23 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
                 </p>
               </div>
 
-              <div className="pt-2">
+              <div className="pt-2 flex items-center gap-3 flex-wrap justify-center">
+                {onOpenInStudio && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenInStudio()}
+                    className="px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs transition-all shadow-md shadow-amber-400/10 active:scale-95 cursor-pointer flex items-center gap-2"
+                  >
+                    <Highlighter className="w-4 h-4" />
+                    <span>Create in Highlight Studio</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => templateUploadInputRef.current?.click()}
-                  className="px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs transition-all shadow-md shadow-amber-400/10 active:scale-95 cursor-pointer flex items-center gap-2"
+                  className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs transition-all shadow-md active:scale-95 cursor-pointer flex items-center gap-2"
                 >
-                  <UploadCloud className="w-4 h-4" />
+                  <UploadCloud className="w-4 h-4 text-amber-400" />
                   <span>Upload Template (.docx)</span>
                 </button>
               </div>
@@ -1235,7 +1394,7 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800/80">
+                    <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800/80">
                       <div className="flex items-center gap-2">
                         <span className="text-[11px] font-medium text-amber-300 bg-amber-500/10 px-2.5 py-0.5 rounded border border-amber-500/20">
                           {t.fields_count} variables
@@ -1246,6 +1405,21 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
                           </span>
                         )}
                       </div>
+
+                      {onOpenInStudio && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenInStudio(t.id);
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                          title={`Edit ${t.name} in Highlight Studio`}
+                        >
+                          <Edit3 className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Edit in Studio</span>
+                        </button>
+                      )}
 
                       <span className="px-3.5 py-1.5 rounded-xl bg-amber-400 group-hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md shadow-amber-400/10 transition-all">
                         <span>Select</span>

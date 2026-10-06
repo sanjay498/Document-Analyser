@@ -16,7 +16,7 @@ from sqlalchemy import select
 from pydantic import BaseModel, Field
 
 from backend.app.db.database import get_db
-from backend.app.db.models import GenerationSession, DocumentHistoryItem, User, WalletTransaction, SystemPricingConfig, TemplateLibraryItem
+from backend.app.db.models import GenerationSession, DocumentHistoryItem, User, WalletTransaction, SystemPricingConfig, TemplateLibraryItem, Client
 from backend.app.core.auth import get_current_user_optional
 from backend.app.core.doc_processor import (
     detect_yellow_highlights,
@@ -415,6 +415,22 @@ async def extract_field_values(
     import os
     api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 
+    # Fetch client details if session has client_id
+    client_info = None
+    if session.client_id:
+        c_stmt = select(Client).where(Client.id == session.client_id)
+        c_res = await db.execute(c_stmt)
+        client_obj = c_res.scalar_one_or_none()
+        if client_obj:
+            client_info = {
+                "id": client_obj.id,
+                "name": client_obj.name,
+                "phone": client_obj.phone,
+                "email": client_obj.email,
+                "matter_title": getattr(client_obj, "title", None),
+                "loan_type": getattr(client_obj, "nature_of_loan", None),
+            }
+
     # 1. Run dynamic field & table extraction if template fields exist
     final_fields = []
     final_tables = []
@@ -425,7 +441,8 @@ async def extract_field_values(
             source_docs=sources,
             api_key=api_key,
             model=payload.model or "free_ai_model",
-            preferred_deed_model=payload.preferred_deed_model
+            preferred_deed_model=payload.preferred_deed_model,
+            client_info=client_info
         )
         final_fields = extraction_output.fields
         final_tables = extraction_output.table_groups
@@ -440,19 +457,23 @@ async def extract_field_values(
 
     # 3. Detect borrower and bank to compute smart auto-names
     detected_borrower = ""
-    for r in final_fields:
-        orig = (r.original_text or "").lower()
-        fid = (r.field_id or "").lower()
-        if any(k in orig or k in fid for k in ["borrower", "applicant", "purchaser", "client", "title holder", "owner"]) and r.value:
-            detected_borrower = r.value.strip()
-            break
+    if client_info and client_info.get("name"):
+        detected_borrower = client_info["name"].strip()
+
+    if not detected_borrower:
+        for r in final_fields:
+            orig = (r.original_text or "").lower()
+            fid = (r.field_id or "").lower()
+            if any(k in orig or k in fid for k in ["borrower", "applicant", "purchaser", "client", "title holder", "owner"]) and r.value:
+                detected_borrower = r.value.strip()
+                break
             
     if not detected_borrower and sources:
         user_sources = [s for s in sources if not any(k in s.filename.lower() for k in ["doc_2001_tamil_title_deed", "sample_tamil_title_deed"])]
         eff_sources = user_sources if user_sources else sources
         combined_src = " ".join([s.full_text for s in eff_sources])
         if combined_src:
-            ents = extract_legal_entities_from_text(combined_src)
+            ents = extract_legal_entities_from_text(combined_src, client_info=client_info)
             detected_borrower = ents.get("borrower") or ents.get("purchaser") or ents.get("allottee") or ""
 
     sample_template_text = " ".join([f.paragraph_context for f in fields[:12]])
@@ -534,6 +555,22 @@ async def export_final_document(
             if f.field_id not in field_values or not field_values[f.field_id]:
                 field_values[f.field_id] = active_loan_nature
 
+    # Fetch client details if session has client_id
+    client_info = None
+    if session.client_id:
+        c_stmt = select(Client).where(Client.id == session.client_id)
+        c_res = await db.execute(c_stmt)
+        client_obj = c_res.scalar_one_or_none()
+        if client_obj:
+            client_info = {
+                "id": client_obj.id,
+                "name": client_obj.name,
+                "phone": client_obj.phone,
+                "email": client_obj.email,
+                "matter_title": getattr(client_obj, "title", None),
+                "loan_type": getattr(client_obj, "nature_of_loan", None),
+            }
+
     # 1. Build context from source documents and field values
     ctx = {}
     raw_sources = json.loads(session.sources_json or "[]")
@@ -541,8 +578,23 @@ async def export_final_document(
     effective_sources = user_sources if user_sources else raw_sources
     all_source_text = " ".join([s.get("full_text", "") for s in effective_sources])
     if all_source_text:
-        extracted_from_src = extract_legal_entities_from_text(all_source_text)
+        extracted_from_src = extract_legal_entities_from_text(
+            all_source_text,
+            filename=(effective_sources[0].get("filename", "") if effective_sources else ""),
+            client_info=client_info
+        )
         ctx.update(extracted_from_src)
+
+    if client_info and client_info.get("name"):
+        c_name = clean_party_name(client_info["name"])
+        ctx["borrower"] = c_name
+        ctx["allottee"] = c_name
+        ctx["purchaser"] = c_name
+        for f in fields:
+            if classify_field(f) == "borrower":
+                current_v = field_values.get(f.field_id)
+                if not current_v or current_v.strip() in ("", "Title Holder", "Borrower"):
+                    field_values[f.field_id] = c_name
 
     for fid, fval in field_values.items():
         if fval and len(str(fval).strip()) <= 100:

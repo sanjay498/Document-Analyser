@@ -38,9 +38,13 @@ def run_async(coro):
     return asyncio.run(coro)
 
 
+@pytest.fixture(scope="module", autouse=True)
+def setup_payment_db():
+    run_async(init_db())
+
+
 def create_test_user(role="USER", name="Test User", balance=Decimal("0.00")):
     async def _create():
-        await init_db()
         async with AsyncSessionLocal() as session:
             user_id = str(uuid.uuid4())
             user = User(

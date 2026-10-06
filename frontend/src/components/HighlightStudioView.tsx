@@ -6,6 +6,8 @@ import {
   Download,
   Bookmark,
   ArrowRight,
+  ArrowLeft,
+  RefreshCw,
   Eye,
   Check,
   X,
@@ -22,6 +24,8 @@ import {
   saveEditorAsTemplate,
   useEditorInSession,
   importFileToEditor,
+  importTemplateToEditor,
+  updateTemplateInLibrary,
   type EditorDocumentPayload,
   type EditorParagraph,
   type EditorTextRun,
@@ -40,9 +44,12 @@ interface HighlightStudioViewProps {
 export const HighlightStudioView: React.FC<HighlightStudioViewProps> = ({
   onSelectTemplate,
   onNavigateToWorkspace,
+  initialTemplateId,
 }) => {
   const [docTitle, setDocTitle] = useState('');
   const [elements, setElements] = useState<EditorElement[]>([]);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(initialTemplateId || null);
+  const [isLoadingInitialTemplate, setIsLoadingInitialTemplate] = useState<boolean>(false);
   const [rawDocxBase64, setRawDocxBase64] = useState<string | undefined>(undefined);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -234,6 +241,41 @@ export const HighlightStudioView: React.FC<HighlightStudioViewProps> = ({
       setIsProcessing(false);
     }
   };
+
+  // Load existing template into Highlight Studio if initialTemplateId provided
+  useEffect(() => {
+    if (initialTemplateId) {
+      setEditingTemplateId(initialTemplateId);
+      setIsLoadingInitialTemplate(true);
+      setMessage(null);
+      importTemplateToEditor(initialTemplateId)
+        .then((res) => {
+          const newElems = res.elements && res.elements.length > 0 ? res.elements : (
+            res.paragraphs ? res.paragraphs.map((p: EditorParagraph) => ({ type: 'paragraph' as const, paragraph: p })) : []
+          );
+          setDocTitle(res.title || 'Opinion_Template.docx');
+          setRawDocxBase64(res.raw_docx_base64);
+          setHistory([newElems]);
+          setHistoryIndex(0);
+          setElements(newElems);
+          setMessage({
+            type: 'success',
+            text: `Loaded "${res.title || 'template'}" for editing in Highlight Studio. Click words or table cells to add or remove yellow highlights.`
+          });
+        })
+        .catch((err: any) => {
+          setMessage({
+            type: 'error',
+            text: err.message || 'Failed to load template into Highlight Studio'
+          });
+        })
+        .finally(() => {
+          setIsLoadingInitialTemplate(false);
+        });
+    } else {
+      setEditingTemplateId(null);
+    }
+  }, [initialTemplateId]);
 
   // Handle file input change
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -501,7 +543,7 @@ export const HighlightStudioView: React.FC<HighlightStudioViewProps> = ({
     setMessage({ type: 'success', text: `Added structured table "${newTable.title}" with ${colNames.length} columns!` });
   };
 
-  // Action 1: Use in Workspace
+  // Action 1: Use in Workspace / Scrutiny
   const handleUseInWorkspace = async () => {
     setIsProcessing(true);
     const currParagraphs = elements.filter(e => e.type === 'paragraph' && e.paragraph).map(e => e.paragraph!);
@@ -516,6 +558,19 @@ export const HighlightStudioView: React.FC<HighlightStudioViewProps> = ({
     };
 
     try {
+      if (editingTemplateId) {
+        // Save updates to library first
+        await updateTemplateInLibrary(editingTemplateId, payload).catch((e) => console.warn('Silent update:', e));
+      } else {
+        // Save as new template in library
+        const saved = await saveEditorAsTemplate(payload).catch((e) => {
+          console.warn('Silent save:', e);
+          return null;
+        });
+        if (saved?.id) {
+          setEditingTemplateId(saved.id);
+        }
+      }
       const res = await useEditorInSession(payload);
       onSelectTemplate(res);
       onNavigateToWorkspace();
@@ -527,7 +582,7 @@ export const HighlightStudioView: React.FC<HighlightStudioViewProps> = ({
   };
 
   // Action 2: Save to Template Library
-  const handleSaveToLibrary = async () => {
+  const handleSaveToLibrary = async (asNewCopy: boolean = false) => {
     setIsProcessing(true);
     const currParagraphs = elements.filter(e => e.type === 'paragraph' && e.paragraph).map(e => e.paragraph!);
     const currTables = elements.filter(e => e.type === 'table' && e.table).map(e => e.table!);
@@ -541,11 +596,20 @@ export const HighlightStudioView: React.FC<HighlightStudioViewProps> = ({
     };
 
     try {
-      const res = await saveEditorAsTemplate(payload);
-      setMessage({
-        type: 'success',
-        text: `Template "${res.name}" saved to library with ${res.fields_count} yellow highlighted dynamic fields!`
-      });
+      if (editingTemplateId && !asNewCopy) {
+        const res = await updateTemplateInLibrary(editingTemplateId, payload);
+        setMessage({
+          type: 'success',
+          text: `Template "${res.name}" updated successfully with ${res.fields_count} yellow highlighted dynamic fields!`
+        });
+      } else {
+        const res = await saveEditorAsTemplate(payload);
+        setEditingTemplateId(res.id);
+        setMessage({
+          type: 'success',
+          text: `Template "${res.name}" saved to library with ${res.fields_count} yellow highlighted dynamic fields!`
+        });
+      }
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Failed to save template to library' });
     } finally {
@@ -616,13 +680,25 @@ export const HighlightStudioView: React.FC<HighlightStudioViewProps> = ({
       <div className="glass-panel rounded-2xl p-6 border border-slate-800 space-y-4 shadow-xl">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
           <div className="space-y-1">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="p-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
                 <Highlighter className="w-5 h-5" />
               </span>
               <div>
-                <h1 className="text-xl font-bold text-white tracking-tight">Highlight Studio & Template Builder</h1>
-                <p className="text-xs text-slate-400">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 className="text-xl font-bold text-white tracking-tight">Highlight Studio & Template Builder</h1>
+                  {editingTemplateId ? (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-400/10 border border-amber-400/30 text-amber-300 text-[11px] font-semibold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                      <span>Editing: {docTitle || 'Template'}</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300 text-[11px] font-semibold">
+                      <span>New Template</span>
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
                   Upload any Word document or build online. All tables, schedules, and paragraphs are preserved in exact sequence.
                 </p>
               </div>
@@ -630,6 +706,17 @@ export const HighlightStudioView: React.FC<HighlightStudioViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Back to Scrutiny Desk Button */}
+            <button
+              type="button"
+              onClick={onNavigateToWorkspace}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all cursor-pointer shadow-sm"
+              title="Return to scrutiny intake"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back to Scrutiny</span>
+            </button>
+
             {/* Upload Existing Document */}
             <input
               type="file"
@@ -641,16 +728,22 @@ export const HighlightStudioView: React.FC<HighlightStudioViewProps> = ({
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={isProcessing}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 transition-all shadow-sm"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 transition-all shadow-sm cursor-pointer"
               title="Upload existing .docx or .pdf template"
             >
               <Upload className="w-3.5 h-3.5 text-amber-400" />
               <span>Upload Document</span>
             </button>
-
-
           </div>
         </div>
+
+        {/* Loading Indicator for Initial Template */}
+        {isLoadingInitialTemplate && (
+          <div className="p-3.5 rounded-xl bg-slate-900 border border-amber-500/30 flex items-center gap-2.5 text-xs text-amber-300 animate-fade-in">
+            <RefreshCw className="w-4 h-4 animate-spin text-amber-400 shrink-0" />
+            <span>Loading template from database into Highlight Studio...</span>
+          </div>
+        )}
 
         {/* Message Banner */}
         {message && (
@@ -1280,33 +1373,57 @@ export const HighlightStudioView: React.FC<HighlightStudioViewProps> = ({
 
           {/* Action Export Buttons */}
           <div className="glass-panel rounded-2xl p-5 border border-slate-800 space-y-3">
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider">Save & Export</h4>
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider">Save & Scrutiny Actions</h4>
 
-            {/* Use in Workspace */}
+            {/* Use in Scrutiny Desk */}
             <button
               onClick={handleUseInWorkspace}
               disabled={isProcessing}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30 transition-all active:scale-95 disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs font-bold bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-lg shadow-amber-400/20 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
             >
-              <span>Use in Workspace</span>
-              <ArrowRight className="w-4 h-4" />
+              <span>Use in Scrutiny Desk</span>
+              <ArrowRight className="w-4 h-4 stroke-[2.5]" />
             </button>
 
-            {/* Save to Template Library */}
-            <button
-              onClick={handleSaveToLibrary}
-              disabled={isProcessing}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 transition-all shadow-sm disabled:opacity-50"
-            >
-              <Bookmark className="w-4 h-4" />
-              <span>Save to Template Library</span>
-            </button>
+            {/* Save Actions: Existing Template vs New Template */}
+            {editingTemplateId ? (
+              <>
+                <button
+                  onClick={() => handleSaveToLibrary(false)}
+                  disabled={isProcessing}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 transition-all shadow-sm disabled:opacity-50 cursor-pointer"
+                  title="Overwrite existing template in library with current highlights"
+                >
+                  <Bookmark className="w-4 h-4" />
+                  <span>Save Changes to Template</span>
+                </button>
+
+                <button
+                  onClick={() => handleSaveToLibrary(true)}
+                  disabled={isProcessing}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-medium bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all disabled:opacity-50 cursor-pointer"
+                  title="Save as a separate new template copy in library"
+                >
+                  <Plus className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Save as New Copy</span>
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => handleSaveToLibrary(false)}
+                disabled={isProcessing}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 transition-all shadow-sm disabled:opacity-50 cursor-pointer"
+              >
+                <Bookmark className="w-4 h-4" />
+                <span>Save to Template Library</span>
+              </button>
+            )}
 
             {/* Download .docx */}
             <button
               onClick={handleDownloadDocx}
               disabled={isProcessing}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all shadow-sm disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all shadow-sm disabled:opacity-50 cursor-pointer"
             >
               <Download className="w-4 h-4 text-amber-400" />
               <span>Download .docx</span>

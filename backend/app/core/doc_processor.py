@@ -364,6 +364,11 @@ def detect_yellow_highlights(
             and not is_fixed_summary
         )
 
+        # Check if table is a 2-column key-value or form table where Col 0 is the row label
+        is_kv_form_table = len(table.columns) == 2 or (
+            len(table.columns) == 3 and not any(k in all_headers_str for k in ["sl. no", "sr. no", "schedule", "table 1", "table 2"])
+        )
+
         table_group_registered = False
 
         # Scan each row
@@ -371,7 +376,10 @@ def detect_yellow_highlights(
             # Assemble row context summary
             row_cells_summary = []
             for c_i, cell in enumerate(row.cells):
-                hdr = col_headers[c_i] if c_i < len(col_headers) else f"Col {c_i}"
+                if is_kv_form_table:
+                    hdr = "Field" if c_i == 0 else (row.cells[0].text.strip() or f"Col {c_i}")
+                else:
+                    hdr = col_headers[c_i] if c_i < len(col_headers) else f"Col {c_i}"
                 row_cells_summary.append(f"[{hdr}: {cell.text.strip()}]")
             row_context_str = f"Table {t_idx + 1}, Row {r_idx + 1}: " + " | ".join(row_cells_summary)
 
@@ -379,7 +387,10 @@ def detect_yellow_highlights(
             group_id = f"table_{t_idx}_row_{r_idx}"
 
             for c_idx, cell in enumerate(row.cells):
-                col_header = col_headers[c_idx] if c_idx < len(col_headers) else f"Column {c_idx}"
+                if is_kv_form_table and c_idx > 0 and row.cells[0].text.strip():
+                    col_header = row.cells[0].text.strip()
+                else:
+                    col_header = col_headers[c_idx] if c_idx < len(col_headers) else f"Column {c_idx}"
                 for cp_idx, cell_p in enumerate(cell.paragraphs):
                     def make_cell_loc(span, t_i=t_idx, r_i=r_idx, c_i=c_idx, cp_i=cp_idx):
                         return FieldLocation(
@@ -743,15 +754,15 @@ def _sync_and_replace_annexure(
 
     # Reconcile defaults
     borrower = borrower or "Title Holder"
-    extent = extent or "0.52.0 Hectare (1.28 Acres)"
-    survey_no = survey_no or "S.F.No. 84/A2"
-    sro = sro or "Komangalam"
-    doc_no = doc_no or "1931/2026"
-    patta_no = patta_no or "2335"
-    deed_date = deed_date or "04.06.2026"
-    branch = branch or (f"{sro} Branch" if sro else "Pollachi Branch")
-    place = sro or "Pollachi"
-    advocate = advocate or "K.KANDAKUMARRAJ, B.A., B.L., Advocate & Notary"
+    extent = extent or "As per schedule"
+    survey_no = survey_no or "As per schedule"
+    sro = sro or "Sub-Registrar Office"
+    patta_str = f"Patta No. {patta_no}" if patta_no else "revenue records"
+    doc_no_str = f"Doc No. {doc_no}" if doc_no else "Registered deed"
+    deed_date = deed_date or ""
+    branch = branch or (f"{sro} Branch" if sro and sro != "Sub-Registrar Office" else "Lending Branch")
+    place = sro if sro != "Sub-Registrar Office" else "Place of Execution"
+    advocate = advocate or "Advocate & Notary"
 
     v_m = re.search(r"([A-Za-z]+)\s+Village", location, re.IGNORECASE) if location else None
     t_m = re.search(r"([A-Za-z]+)\s+Taluk", location, re.IGNORECASE) if location else None
@@ -828,9 +839,11 @@ def _sync_and_replace_annexure(
                         for p in row.cells[2].paragraphs:
                             clear_paragraph_highlights(p)
                 else:
+                    patta_part = f", revenue records ({patta_str})," if patta_no else ", and revenue records,"
+                    sro_part = f"issued by SRO {sro}" if sro and sro != "Sub-Registrar Office" else "issued by the Sub-Registrar Office"
                     search_stmt = (
                         f"The applicant/owner {borrower} has produced Encumbrance Certificate for over 30 years "
-                        f"from {ec_from} to {ec_to} issued by SRO {sro}. The EC, revenue records (Patta No. {patta_no}), "
+                        f"from {ec_from} to {ec_to} {sro_part}. The EC{patta_part} "
                         f"and municipal/panchayat records have been verified. All prior transactions have been duly scrutinized "
                         f"and there are no subsisting or undisclosed encumbrances, attachments, or adverse claims over the property as on {ec_to}."
                     )
@@ -847,9 +860,25 @@ def _sync_and_replace_annexure(
             elif "borrower/owner as per title deed" in part or s_no.startswith("a"):
                 _set_cell_text(row.cells[2], borrower, clear_highlight=clear_highlight)
             elif "extent of area" in part or s_no.startswith("b"):
-                _set_cell_text(row.cells[2], f"Totally measuring an extent of {extent}", clear_highlight=clear_highlight)
+                existing = row.cells[2].text.strip()
+                if extent and extent != "As per schedule":
+                    _set_cell_text(row.cells[2], f"Totally measuring an extent of {extent}", clear_highlight=clear_highlight)
+                elif not is_invalid_or_stale(existing):
+                    if clear_highlight:
+                        for p in row.cells[2].paragraphs:
+                            clear_paragraph_highlights(p)
+                else:
+                    _set_cell_text(row.cells[2], "Totally measuring as per deed schedule", clear_highlight=clear_highlight)
             elif "survey no" in part or s_no.startswith("c"):
-                _set_cell_text(row.cells[2], survey_no, clear_highlight=clear_highlight)
+                existing = row.cells[2].text.strip()
+                if survey_no and survey_no != "As per schedule":
+                    _set_cell_text(row.cells[2], survey_no, clear_highlight=clear_highlight)
+                elif not is_invalid_or_stale(existing):
+                    if clear_highlight:
+                        for p in row.cells[2].paragraphs:
+                            clear_paragraph_highlights(p)
+                else:
+                    _set_cell_text(row.cells[2], "As per deed schedule", clear_highlight=clear_highlight)
             elif "boundaries" in part or s_no.startswith("d"):
                 _set_cell_text(row.cells[2], clean_bound, clear_highlight=clear_highlight)
             elif "type of land" in part or s_no.startswith("e"):
@@ -946,9 +975,9 @@ def apply_field_values_to_template(
                     records=records,
                     clear_highlight=clear_highlight
                 )
-                # Mark all fields belonging to this table as handled
+                # Mark fields belonging to this specific duplicated table row as handled
                 for f in fields:
-                    if f.location.table_index == t_idx:
+                    if f.location.table_index == t_idx and f.location.row_index == r_idx:
                         handled_table_cells.add(f.field_id)
         except Exception as e:
             print(f"Warning: Could not populate dynamic table group {group_id}: {str(e)}")

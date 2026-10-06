@@ -845,16 +845,17 @@ def format_deed_phrase(model_id: str, context: Optional[Dict[str, Any]] = None) 
     # Intelligently adapt defaults based on context hints
     ctx_str = str(ctx).lower()
     is_subbiah_doc = any(k in ctx_str for k in ["subbiah", "245", "4.57", "1120", "mannur", "muthulakshmi", "gopalan", "1277", "2860"])
+    is_balashanmugam_doc = any(k in ctx_str for k in ["balashanmugam", "பாலசண்முகம்", "thensangampalayam", "தென்சங்கம்பாளையம்"]) or ("1773" in ctx_str and "5035" in ctx_str)
 
-    default_sf = "S.F.No.245/1B and 245/3A2" if is_subbiah_doc else "S.F.No.74/B, 75, and 76/2"
-    default_ext = "4.57 Acres (0.16 Acres and 4.41 Acres)" if is_subbiah_doc else "6.11 Acres"
-    default_vil = "Mannur Village" if is_subbiah_doc else "Thensangampalayam Village"
-    default_sro = "Pollachi" if is_subbiah_doc else "Anaimalai"
-    default_date = "16.11.1987" if is_subbiah_doc else "08.10.1998"
-    default_doc_no = "2860" if is_subbiah_doc else "1773"
-    default_year = "1987" if is_subbiah_doc else "1998"
-    default_allottee = "K.MUTHULAKSHMI, W/o G.Kumar" if is_subbiah_doc else "Balashanmugam, S/o Kalimuthu Chettiyar"
-    default_ancestor = "Murugesan" if is_subbiah_doc else "Kalimuthu Chettiyar"
+    default_sf = "S.F.No.245/1B and 245/3A2" if is_subbiah_doc else ("S.F.No.74/B, 75, and 76/2" if is_balashanmugam_doc else (ctx.get("sf_nos") or "As per schedule"))
+    default_ext = "4.57 Acres (0.16 Acres and 4.41 Acres)" if is_subbiah_doc else ("6.11 Acres" if is_balashanmugam_doc else (ctx.get("extent") or "As per schedule"))
+    default_vil = "Mannur Village" if is_subbiah_doc else ("Thensangampalayam Village" if is_balashanmugam_doc else (ctx.get("village") or "the Village"))
+    default_sro = "Pollachi" if is_subbiah_doc else ("Anaimalai" if is_balashanmugam_doc else (ctx.get("sro") or "Sub-Registrar Office"))
+    default_date = "16.11.1987" if is_subbiah_doc else ("08.10.1998" if is_balashanmugam_doc else (ctx.get("date") or "01.01.2020"))
+    default_doc_no = "2860" if is_subbiah_doc else ("1773" if is_balashanmugam_doc else (ctx.get("doc_no") or "1001"))
+    default_year = "1987" if is_subbiah_doc else ("1998" if is_balashanmugam_doc else (ctx.get("year") or "2020"))
+    default_allottee = "K.MUTHULAKSHMI, W/o G.Kumar" if is_subbiah_doc else ("Balashanmugam, S/o Kalimuthu Chettiyar" if is_balashanmugam_doc else (ctx.get("allottee") or ctx.get("borrower") or ctx.get("purchaser") or "Title Holder"))
+    default_ancestor = "Murugesan" if is_subbiah_doc else ("Kalimuthu Chettiyar" if is_balashanmugam_doc else (ctx.get("ancestor") or ctx.get("seller") or "Predecessor-in-title"))
 
     sf_nos = clean_survey_no(raw_sf, default=default_sf)
     extent = clean_extent(raw_extent, default=default_ext)

@@ -639,6 +639,10 @@ export const App: React.FC = () => {
                 onRemoveSource={handleRemoveSource}
                 onClearTemplate={handleClearTemplate}
                 onOpenTemplateLibrary={() => setIsTemplateLibraryModalOpen(true)}
+                onOpenInStudio={(tId) => {
+                  setStudioTemplateId(tId || null);
+                  setActiveTab('studio');
+                }}
                 sessionId={sessionId}
                 preferredDeedModel={preferredDeedModel}
                 onSelectDeedModel={(m) => setPreferredDeedModel(m)}
