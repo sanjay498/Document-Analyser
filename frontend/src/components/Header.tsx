@@ -1,11 +1,7 @@
 import React from 'react';
 import {
-  FileText,
   Users,
-  FolderOpen,
-  Highlighter,
   History as HistoryIcon,
-  Shield,
   Wallet as WalletIcon,
   Plus,
   HelpCircle,
@@ -35,6 +31,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenHelpModal,
   onOpenWalletModal,
   onSwitchToUser,
+  onLogout,
   onResetSession,
   isHealthOk = true,
   onOpenBackendSettings,
@@ -77,108 +74,42 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </div>
 
-        {/* Center Primary Navigation */}
-        <nav className="flex items-center gap-1 bg-[#0b0f19] border border-slate-800/90 rounded-lg p-0.5" aria-label="Main Navigation">
-          <button
-            onClick={() => onSelectTab('workspace')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-              activeTab === 'workspace'
-                ? 'bg-slate-800 text-white'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-            }`}
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span>Workspace</span>
-          </button>
-
+        {/* Center Primary Navigation - ONLY Client Details and History per requirements */}
+        <nav className="flex items-center gap-1.5 bg-[#0b0f19] border border-slate-800/90 rounded-xl p-1" aria-label="Main Navigation">
           <button
             onClick={() => onSelectTab('clients')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'clients'
-                ? 'bg-slate-800 text-white'
+                ? 'bg-slate-800 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
             }`}
-            title="Clients & Legal Opinions"
+            title="Client Details & Past Scrutinies"
           >
             <Users className="w-3.5 h-3.5 text-amber-400" />
-            <span>Clients</span>
-          </button>
-
-          <button
-            onClick={() => onSelectTab('templates')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-              activeTab === 'templates'
-                ? 'bg-slate-800 text-white'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-            }`}
-          >
-            <FolderOpen className="w-3.5 h-3.5" />
-            <span>Templates</span>
-          </button>
-
-          <button
-            onClick={() => onSelectTab('studio')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-              activeTab === 'studio'
-                ? 'bg-slate-800 text-amber-300'
-                : 'text-slate-400 hover:text-amber-200 hover:bg-slate-800/40'
-            }`}
-          >
-            <Highlighter className="w-3.5 h-3.5 text-amber-400" />
-            <span>Studio</span>
+            <span>Client Details</span>
           </button>
 
           <button
             onClick={() => onSelectTab('history')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'history'
-                ? 'bg-slate-800 text-white'
+                ? 'bg-slate-800 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
             }`}
+            title="Generated Legal Opinions History"
           >
-            <HistoryIcon className="w-3.5 h-3.5" />
+            <HistoryIcon className="w-3.5 h-3.5 text-slate-300" />
             <span>History</span>
-          </button>
-
-          {/* User Wallet Tab */}
-          <button
-            onClick={() => onSelectTab('wallet')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-              activeTab === 'wallet'
-                ? 'bg-slate-800 text-amber-300 border border-slate-700'
-                : 'text-slate-400 hover:text-amber-200 hover:bg-slate-800/40'
-            }`}
-            title="User Wallet, UPI Top-Up & Billing"
-          >
-            <WalletIcon className="w-3.5 h-3.5 text-amber-400" />
-            <span>Wallet</span>
-            <span className="font-mono text-[10px] text-amber-300 bg-amber-400/10 px-1 py-0.5 rounded ml-0.5 border border-amber-400/20">
-              ₹{displayBalance.toFixed(2)}
-            </span>
-          </button>
-
-          {/* Admin Panel Tab - Always accessible; prompts for admin password if not elevated */}
-          <button
-            onClick={() => onSelectTab('admin')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-              activeTab === 'admin'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                : 'text-amber-400/80 hover:text-amber-300 hover:bg-slate-800/40'
-            }`}
-            title="Administrator Management Portal (/management)"
-          >
-            <Shield className="w-3.5 h-3.5" />
-            <span>Admin</span>
           </button>
         </nav>
 
         {/* Right Action Cluster */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           {/* Switch to User button if in admin mode */}
-          {isUserAdmin && onSwitchToUser && (
+          {isUserAdmin && onSwitchToUser && activeTab === 'admin' && (
             <button
               onClick={onSwitchToUser}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer"
               title="Return to User Workspace"
             >
               <ArrowLeft className="w-3 h-3 text-slate-400" />
@@ -186,38 +117,59 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Wallet Balance Shortcut Pill */}
+          {/* Wallet Balance Header Pill */}
           <button
             onClick={onOpenWalletModal || (() => onSelectTab('wallet'))}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs border transition-colors cursor-pointer ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
               activeTab === 'wallet'
-                ? 'border-amber-400/50 bg-amber-400/10 text-amber-300'
-                : 'border-slate-800 hover:border-slate-700 bg-[#0b0f19] hover:bg-slate-800/50 text-slate-300 hover:text-white'
+                ? 'border-amber-400/50 bg-amber-400/15 text-amber-300'
+                : 'border-slate-800 hover:border-slate-700 bg-[#0b0f19] hover:bg-slate-800/60 text-slate-300 hover:text-white'
             }`}
-            title="Open Account Wallet & Billing"
+            title="Wallet Balance & Billing (Click to Top-Up)"
           >
             <WalletIcon className="w-3.5 h-3.5 text-amber-400" />
-            <span className="font-mono text-xs font-medium">₹{displayBalance.toFixed(2)}</span>
+            <span className="text-slate-400 font-medium">Wallet:</span>
+            <span className="font-mono text-xs font-bold text-amber-300">₹{displayBalance.toFixed(2)}</span>
           </button>
 
-          {/* New Opinion */}
+          {/* Primary CTA: + New Opinion */}
           <button
             onClick={onResetSession}
-            className="flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 transition-colors cursor-pointer"
-            title="Start a fresh document"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-amber-400 hover:bg-amber-300 text-slate-950 transition-all cursor-pointer shadow-sm active:scale-95"
+            title="Start a new document / opinion workflow"
           >
-            <Plus className="w-3 h-3 text-amber-400" />
-            <span className="hidden sm:inline">New Opinion</span>
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>New Opinion</span>
           </button>
 
-          {/* Help Modal trigger */}
+          {/* Help Modal Trigger */}
           <button
+            type="button"
             onClick={onOpenHelpModal}
-            className="p-1.5 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
-            title="How It Works"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
+            title="How It Works & Quick Guide"
           >
             <HelpCircle className="w-4 h-4" />
           </button>
+
+          {/* User Profile / Logout Indicator */}
+          {user && (
+            <div className="hidden md:flex items-center gap-2 pl-1 border-l border-slate-800 text-xs">
+              <span className="text-slate-400 truncate max-w-[120px]" title={user.email}>
+                {user.name || user.email.split('@')[0]}
+              </span>
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="text-[11px] text-slate-500 hover:text-rose-400 transition-colors cursor-pointer"
+                  title="Logout"
+                >
+                  Logout
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </header>

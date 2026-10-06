@@ -706,15 +706,15 @@ export const HighlightStudioView: React.FC<HighlightStudioViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Back to Workspace Button */}
+            {/* Back to Template Selection Button */}
             <button
               type="button"
               onClick={onNavigateToWorkspace}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all cursor-pointer shadow-sm"
-              title="Return to workspace"
+              title="Return to Step 1: Choose Template"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back to Workspace</span>
+              <span>Back to Template Selection</span>
             </button>
 
             {/* Upload Existing Document */}

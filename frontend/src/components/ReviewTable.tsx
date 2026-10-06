@@ -21,7 +21,8 @@ import {
   BookmarkPlus,
   CheckCheck,
   BookOpen,
-  X
+  X,
+  ArrowLeft
 } from 'lucide-react';
 import { getDeedModels, applyDeedModelToSession, renameSessionDocument, saveSessionAsTemplate } from '../services/api';
 import {
@@ -69,6 +70,8 @@ interface ReviewTableProps {
     extractedVal?: string
   ) => void;
   onStartNewScrutiny?: () => void;
+  onBackToUploads?: () => void;
+  onRegenerate?: () => void;
   downloadUrl: string | null;
   qaAnswers?: QuestionAnswer[];
   questions?: TemplateQuestion[];
@@ -89,6 +92,8 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
   onApplyDeedModel,
   onViewSource,
   onStartNewScrutiny,
+  onBackToUploads,
+  onRegenerate,
   downloadUrl,
   qaAnswers = [],
   questions: _questions = [],
@@ -637,6 +642,28 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
               <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
               <span className="font-semibold">{notFoundCount}</span> Missing
             </div>
+          )}
+          {onBackToUploads && (
+            <button
+              type="button"
+              onClick={onBackToUploads}
+              className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-slate-600 text-xs text-slate-300 hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
+              title="Return to uploaded deeds document stage"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 text-amber-400" />
+              <span>Back to Deeds</span>
+            </button>
+          )}
+          {onRegenerate && (
+            <button
+              type="button"
+              onClick={onRegenerate}
+              className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-amber-500/40 text-xs text-slate-300 hover:text-amber-300 transition-colors flex items-center gap-1.5 cursor-pointer"
+              title="Re-run AI extraction and analysis"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+              <span>Regenerate</span>
+            </button>
           )}
           <button
             type="button"

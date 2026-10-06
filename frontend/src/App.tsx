@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
-import { ReviewTable } from './components/ReviewTable';
-import { WorkspaceIntake } from './components/workspace/WorkspaceIntake';
-import { WorkspaceProcessing } from './components/workspace/WorkspaceProcessing';
 import { HowItWorksModal } from './components/HowItWorksModal';
 import { TemplateLibraryModal } from './components/TemplateLibraryModal';
 import { HistoryModal } from './components/HistoryModal';
@@ -17,6 +14,8 @@ import { WalletView } from './components/WalletView';
 import { AdminDashboardView } from './components/AdminDashboardView';
 import { ClientsView } from './components/ClientsView';
 import { BackendConfigModal } from './components/BackendConfigModal';
+import { StepWorkflow } from './components/workflow/StepWorkflow';
+import { DEFAULT_LOAN_NATURE } from './utils/loanModels';
 import {
   createSession,
   uploadTemplate,
@@ -42,7 +41,6 @@ import type {
   UserProfile,
   UseTemplateResponse,
   Client,
-  StartScrutinyResponse,
   TemplateQuestion,
   QuestionAnswer,
 } from './types';
@@ -56,6 +54,14 @@ export const App: React.FC = () => {
   const [activeClient, setActiveClient] = useState<Client | null>(null);
   const [studioTemplateId, setStudioTemplateId] = useState<string | null>(null);
   const [isMetricsModalOpen, setIsMetricsModalOpen] = useState<boolean>(false);
+
+  // Step-by-Step Workflow Wizard State (Preserved across Next/Back transitions)
+  const [workflowStep, setWorkflowStep] = useState<1 | 2 | 3 | 4>(1);
+  const [clientName, setClientName] = useState<string>('');
+  const [clientPhone, setClientPhone] = useState<string>('');
+  const [clientEmail, setClientEmail] = useState<string>('');
+  const [clientTitle, setClientTitle] = useState<string>('');
+  const [clientNatureOfLoan, setClientNatureOfLoan] = useState<string>(DEFAULT_LOAN_NATURE);
 
   // Data states
   const [templateFilename, setTemplateFilename] = useState<string | undefined>();
@@ -195,9 +201,25 @@ export const App: React.FC = () => {
                 try {
                   const cl = await getClientDetail(state.client_id);
                   setActiveClient(cl);
+                  if (cl) {
+                    setClientName(cl.name || '');
+                    setClientPhone(cl.phone || '');
+                    setClientEmail(cl.email || '');
+                    setClientTitle(cl.title || '');
+                    if (cl.nature_of_loan) setClientNatureOfLoan(cl.nature_of_loan);
+                  }
                 } catch (e) {
                   console.warn('Could not restore client for session', e);
                 }
+              }
+              if (state.results && state.results.length > 0) {
+                setWorkflowStep(4);
+              } else if (state.sources && state.sources.length > 0) {
+                setWorkflowStep(3);
+              } else if (state.template_filename) {
+                setWorkflowStep(2);
+              } else {
+                setWorkflowStep(1);
               }
               restored = true;
             }
@@ -252,6 +274,11 @@ export const App: React.FC = () => {
       localStorage.setItem('lex_title_session_id', sess.session_id);
       setTemplateFilename(undefined);
       setActiveClient(null);
+      setClientName('');
+      setClientPhone('');
+      setClientEmail('');
+      setClientTitle('');
+      setClientNatureOfLoan(DEFAULT_LOAN_NATURE);
       setFields([]);
       setTableGroups([]);
       setSources([]);
@@ -261,32 +288,21 @@ export const App: React.FC = () => {
       setQuestions([]);
       setPreferredDeedModel('normal_partition');
       setDownloadUrl(null);
+      setWorkflowStep(1);
       setActiveTab('workspace');
-      showToast('Session reset. Ready for new documents.', 'info');
+      showToast('Session reset. Ready to choose a template.', 'info');
     } catch (err) {
       showToast('Failed to reset session', 'error');
     }
   };
 
-  const handleScrutinySessionReady = (res: StartScrutinyResponse) => {
-    setSessionId(res.session_id);
-    localStorage.setItem('lex_title_session_id', res.session_id);
-    setTemplateFilename(res.template_filename);
-    setFields(res.fields);
-    setTableGroups(res.table_groups || []);
-    setActiveClient(res.client);
-    setActiveTab('workspace');
-    setSources([]);
-    setResults([]);
-    setTableResults([]);
-    setQaAnswers([]);
-    setQuestions([]);
-    setDownloadUrl(null);
-    showToast(`Started session for ${res.client.name} using "${res.template_filename}"`, 'success');
-  };
-
   const handleStartScrutinyForClient = (client: Client) => {
     setActiveClient(client);
+    setClientName(client.name || '');
+    setClientPhone(client.phone || '');
+    setClientEmail(client.email || '');
+    setClientTitle(client.title || '');
+    if (client.nature_of_loan) setClientNatureOfLoan(client.nature_of_loan);
     setSources([]);
     setResults([]);
     setTableResults([]);
@@ -294,6 +310,11 @@ export const App: React.FC = () => {
     setQuestions([]);
     setDownloadUrl(null);
     setActiveTab('workspace');
+    if (templateFilename) {
+      setWorkflowStep(2);
+    } else {
+      setWorkflowStep(1);
+    }
     showToast(`Selected client "${client.name}". Choose a template to begin.`, 'info');
   };
 
@@ -322,10 +343,9 @@ export const App: React.FC = () => {
       setResults([]);
       setTableResults([]);
       setDownloadUrl(null);
+      setWorkflowStep(2);
       showToast(
-        `Detected ${res.fields_count} dynamic field(s)${
-          res.table_groups_count > 0 ? ` and ${res.table_groups_count} dynamic table(s)` : ''
-        }.`,
+        `Loaded "${res.template_filename}" (${res.fields_count} dynamic fields). Continue with Client Details.`,
         'success'
       );
     } catch (err: any) {
@@ -342,14 +362,14 @@ export const App: React.FC = () => {
     setTemplateFilename(res.template_filename);
     setFields(res.fields);
     setTableGroups(res.table_groups || []);
-    setSources([]);
     setResults([]);
     setTableResults([]);
     setQaAnswers([]);
     setQuestions([]);
     setDownloadUrl(null);
     setActiveTab('workspace');
-    showToast(`Loaded "${res.template_filename}" from library without re-parsing!`, 'success');
+    setWorkflowStep(2);
+    showToast(`Loaded "${res.template_filename}"! Continue with Client Details.`, 'success');
   };
 
   // Upload Sources
@@ -389,14 +409,6 @@ export const App: React.FC = () => {
     showToast(`Removed deed "${filename}".`, 'info');
   };
 
-  const handleClearTemplate = () => {
-    setTemplateFilename(undefined);
-    setActiveClient(null);
-    setFields([]);
-    setTableGroups([]);
-    showToast('Removed template.', 'info');
-  };
-
   // AI Extraction
   const handleExtract = async (model: string, preferredModel?: string) => {
     if (!sessionId) return;
@@ -404,6 +416,7 @@ export const App: React.FC = () => {
       setPreferredDeedModel(preferredModel);
     }
     setIsExtracting(true);
+    setWorkflowStep(4);
     try {
       const res = await extractFields(sessionId, undefined, model, preferredModel || preferredDeedModel);
       setResults(res.results || []);
@@ -570,7 +583,10 @@ export const App: React.FC = () => {
         ) : activeTab === 'studio' ? (
           <HighlightStudioView
             onSelectTemplate={handleSelectTemplateFromLibrary}
-            onNavigateToWorkspace={() => setActiveTab('workspace')}
+            onNavigateToWorkspace={() => {
+              setActiveTab('workspace');
+              setWorkflowStep(1);
+            }}
             initialTemplateId={studioTemplateId}
           />
         ) : activeTab === 'history' ? (
@@ -588,72 +604,61 @@ export const App: React.FC = () => {
             }}
           />
         ) : (
-          /* ONE SCREEN. ONE CLEAR PURPOSE WORKSPACE */
-          <div className="max-w-5xl mx-auto">
-            {activeClient && !isExtracting && results.length === 0 && qaAnswers.length === 0 && (
-              <div className="flex items-center justify-between pb-3 mb-6 border-b border-slate-800/80">
-                <div className="flex items-center gap-2 text-xs text-amber-300/90 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-lg shadow-sm">
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                  <span>Client: <strong className="text-white">{activeClient.name}</strong> ({activeClient.title})</span>
-                </div>
-              </div>
-            )}
-
-            {isExtracting ? (
-              /* STAGE 2: DEDICATED PROCESSING SCREEN */
-              <WorkspaceProcessing
-                templateFilename={templateFilename}
-                sourcesCount={sources.length}
-              />
-            ) : (results.length > 0 || qaAnswers.length > 0) ? (
-              /* STAGE 3: UNIFIED DOCUMENT AUDIT & SCRUTINY REVIEW */
-              <ReviewTable
-                fields={fields}
-                results={results}
-                tableGroups={tableGroups}
-                tableResults={tableResults}
-                sessionId={sessionId}
-                templateFilename={templateFilename}
-                preferredDeedModel={preferredDeedModel}
-                initialNatureOfLoan={activeClient?.nature_of_loan}
-                onApplyDeedModel={(m) => setPreferredDeedModel(m)}
-                isExporting={isExporting}
-                onExport={handleExport}
-                onViewSource={handleOpenSourceViewer}
-                onStartNewScrutiny={handleResetSession}
-                downloadUrl={downloadUrl}
-                qaAnswers={qaAnswers}
-                questions={questions}
-              />
-            ) : (
-              /* STAGE 1: INTAKE & DOCUMENT DESK */
-              <WorkspaceIntake
-                templateFilename={templateFilename}
-                templateFieldsCount={fields.length}
-                tableGroupsCount={tableGroups.length}
-                sources={sources}
-                isTemplateLoading={isTemplateLoading}
-                isSourcesLoading={isSourcesLoading}
-                onUploadTemplate={handleTemplateUpload}
-                onUploadSources={handleSourcesUpload}
-                onRemoveSource={handleRemoveSource}
-                onClearTemplate={handleClearTemplate}
-                onOpenTemplateLibrary={() => setIsTemplateLibraryModalOpen(true)}
-                onOpenInStudio={(tId) => {
-                  setStudioTemplateId(tId || null);
-                  setActiveTab('studio');
-                }}
-                sessionId={sessionId}
-                preferredDeedModel={preferredDeedModel}
-                onSelectDeedModel={(m) => setPreferredDeedModel(m)}
-                onStartScrutiny={() => handleExtract('free_ai_model', preferredDeedModel)}
-                activeClient={activeClient}
-                onScrutinySessionReady={handleScrutinySessionReady}
-                onClearActiveClient={() => setActiveClient(null)}
-                showToast={showToast}
-              />
-            )}
-          </div>
+          /* STEP-BY-STEP WORKFLOW WIZARD: CHOOSE -> ENTER -> UPLOAD -> GENERATE */
+          <StepWorkflow
+            currentStep={workflowStep}
+            onSetStep={(s) => setWorkflowStep(s)}
+            templateFilename={templateFilename}
+            fieldsCount={fields.length}
+            tableGroupsCount={tableGroups.length}
+            onSelectTemplateFromLibrary={handleSelectTemplateFromLibrary}
+            onUploadTemplateFile={handleTemplateUpload}
+            onOpenInStudio={(tId) => {
+              setStudioTemplateId(tId || null);
+              setActiveTab('studio');
+            }}
+            isTemplateLoading={isTemplateLoading}
+            clientName={clientName}
+            onChangeClientName={setClientName}
+            clientPhone={clientPhone}
+            onChangeClientPhone={setClientPhone}
+            clientEmail={clientEmail}
+            onChangeClientEmail={setClientEmail}
+            clientTitle={clientTitle}
+            onChangeClientTitle={setClientTitle}
+            clientNatureOfLoan={clientNatureOfLoan}
+            onChangeClientNatureOfLoan={setClientNatureOfLoan}
+            activeClient={activeClient}
+            onSelectExistingClient={(c) => {
+              setActiveClient(c);
+              setClientName(c.name || '');
+              setClientPhone(c.phone || '');
+              setClientEmail(c.email || '');
+              setClientTitle(c.title || '');
+              if (c.nature_of_loan) setClientNatureOfLoan(c.nature_of_loan);
+            }}
+            sources={sources}
+            isSourcesLoading={isSourcesLoading}
+            onUploadSources={handleSourcesUpload}
+            onRemoveSource={handleRemoveSource}
+            isExtracting={isExtracting}
+            onStartScrutiny={() => handleExtract('free_ai_model', preferredDeedModel)}
+            results={results}
+            tableResults={tableResults}
+            qaAnswers={qaAnswers}
+            questions={questions}
+            fields={fields}
+            tableGroups={tableGroups}
+            sessionId={sessionId}
+            preferredDeedModel={preferredDeedModel}
+            onApplyDeedModel={(m) => setPreferredDeedModel(m)}
+            isExporting={isExporting}
+            onExport={handleExport}
+            onViewSource={handleOpenSourceViewer}
+            onResetSession={handleResetSession}
+            downloadUrl={downloadUrl}
+            showToast={showToast}
+          />
         )}
       </main>
 
