@@ -98,7 +98,7 @@ export const Header: React.FC<HeaderProps> = ({
                 ? 'bg-slate-800 text-white'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
             }`}
-            title="Clients & Scrutiny Records"
+            title="Clients & Legal Opinions"
           >
             <Users className="w-3.5 h-3.5 text-amber-400" />
             <span>Clients</span>
@@ -200,14 +200,14 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="font-mono text-xs font-medium">₹{displayBalance.toFixed(2)}</span>
           </button>
 
-          {/* New Scrutiny */}
+          {/* New Opinion */}
           <button
             onClick={onResetSession}
             className="flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 transition-colors cursor-pointer"
-            title="Start fresh document scrutiny"
+            title="Start a fresh document"
           >
             <Plus className="w-3 h-3 text-amber-400" />
-            <span className="hidden sm:inline">New Scrutiny</span>
+            <span className="hidden sm:inline">New Opinion</span>
           </button>
 
           {/* Help Modal trigger */}

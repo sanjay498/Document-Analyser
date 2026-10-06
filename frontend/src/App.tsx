@@ -282,7 +282,7 @@ export const App: React.FC = () => {
     setQaAnswers([]);
     setQuestions([]);
     setDownloadUrl(null);
-    showToast(`Scrutiny session started for ${res.client.name} using "${res.template_filename}"`, 'success');
+    showToast(`Started session for ${res.client.name} using "${res.template_filename}"`, 'success');
   };
 
   const handleStartScrutinyForClient = (client: Client) => {
@@ -294,7 +294,7 @@ export const App: React.FC = () => {
     setQuestions([]);
     setDownloadUrl(null);
     setActiveTab('workspace');
-    showToast(`Selected client "${client.name}". Choose a template to begin scrutiny.`, 'info');
+    showToast(`Selected client "${client.name}". Choose a template to begin.`, 'info');
   };
 
   // Upload Template

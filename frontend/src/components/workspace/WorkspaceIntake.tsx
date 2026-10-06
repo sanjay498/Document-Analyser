@@ -527,13 +527,13 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
           <div className="text-center space-y-2 pt-2">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold mb-1">
               <CheckCircle className="w-3.5 h-3.5" />
-              <span>Step 3 of 4: Deed Upload & AI Scrutiny</span>
+              <span>Step 3 of 4: Upload Title Deeds</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-              Documents Ready for Title Scrutiny
+              Documents Ready to Generate Opinion
             </h1>
             <p className="text-xs sm:text-sm text-slate-400 max-w-lg mx-auto leading-relaxed">
-              Review your opinion template and source deeds below, then execute the AI legal scrutiny.
+              Review your template and source deeds below, then click generate to create the final document.
             </p>
           </div>
 
@@ -833,7 +833,7 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
 
             <div className="text-[11px] text-slate-500">
               {sources.length > 0 ? (
-                <span className="text-emerald-400 font-medium">✓ Ready for Title Scrutiny</span>
+                <span className="text-emerald-400 font-medium">✓ Ready to Generate</span>
               ) : (
                 <span className="text-amber-400 font-medium">Upload at least one deed above to continue</span>
               )}
@@ -843,7 +843,7 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
           {/* Phrasing Preview Box */}
           {showSyntaxPreview && activeModel && (
             <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs space-y-1.5 animate-fade-in">
-              <span className="font-semibold text-amber-300">{activeModel.name} Cadence:</span>
+              <span className="font-semibold text-amber-300">{activeModel.name}:</span>
               <p className="text-[11px] font-mono text-slate-300 leading-relaxed bg-slate-900/60 p-2.5 rounded border border-slate-800">
                 "{activeModel.sample_text}"
               </p>
@@ -861,7 +861,7 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
                   : 'bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-amber-400/10 active:scale-[0.99] cursor-pointer'
               }`}
             >
-              <span>Run AI Title Scrutiny</span>
+              <span>Generate Legal Opinion</span>
               <ArrowRight className="w-4 h-4 stroke-[2.5]" />
             </button>
           </div>
@@ -945,8 +945,8 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
                 <span>Existing Client Found</span>
               </div>
               <p className="text-xs text-slate-300 leading-relaxed">
-                A client matching this phone number or email is already permanently registered in the database.
-                Would you like to associate this new scrutiny with the existing client or register a new client?
+                A client matching this phone number or email is already registered in the database.
+                Would you like to use the existing client or register a new client?
               </p>
 
               <div className="bg-[#070a13] p-4 rounded-xl border border-amber-500/20 text-xs space-y-1.5">
@@ -976,7 +976,7 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
                   className="flex-1 py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-md cursor-pointer disabled:opacity-50"
                 >
                   <UserCheck className="w-4 h-4" />
-                  <span>Use Existing Client & Start Scrutiny</span>
+                  <span>Use Existing Client & Continue</span>
                 </button>
 
                 <button
@@ -1204,13 +1204,13 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
           {/* Header */}
           <div className="text-center space-y-2 pt-2">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/10 border border-amber-400/20 text-amber-400 text-xs font-semibold mb-1">
-              <span>Step 1 of 4: Choose or Create Opinion Template</span>
+              <span>Step 1 of 4: Choose or Create Template</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-              Create New Scrutiny
+              New Legal Opinion
             </h1>
             <p className="text-xs sm:text-sm text-slate-400 max-w-xl mx-auto leading-relaxed">
-              Choose from pre-existing bank/property templates, create a new template directly in Highlight Studio, edit an existing template, or upload a .docx file.
+              Select a template, create one in Highlight Studio, edit an existing one, or upload a .docx file to begin.
             </p>
           </div>
 
@@ -1311,7 +1311,7 @@ export const WorkspaceIntake: React.FC<WorkspaceIntakeProps> = ({
                   No templates found in database
                 </h2>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  To start a scrutiny, please upload an opinion template (.docx) with yellow highlighted variables.
+                  To get started, please upload or create a template with yellow highlighted variables.
                   The template will be saved to your template library.
                 </p>
               </div>

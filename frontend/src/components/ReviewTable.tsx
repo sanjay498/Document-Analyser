@@ -607,7 +607,7 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
             </div>
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            Resolve conflicts, verify source citations, and finalize scrutiny answers before document export.
+            Resolve conflicts, verify source citations, and finalize answers before document export.
           </p>
           {templateSavedMsg && (
             <div className="mt-2 text-xs text-emerald-400 font-medium flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 rounded-lg animate-fade-in">
@@ -653,9 +653,9 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
               type="button"
               onClick={onStartNewScrutiny}
               className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-slate-300 transition-colors ml-1 cursor-pointer"
-              title="Start a new scrutiny session"
+              title="Start a new opinion session"
             >
-              + New Scrutiny
+              + New Opinion
             </button>
           )}
         </div>
@@ -690,7 +690,7 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
             }`}
           >
             <FileQuestion className="w-3.5 h-3.5" />
-            <span>Scrutiny Q&A & Checklist</span>
+            <span>Questions & Checklist</span>
             <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeReviewTab === 'qa' ? 'bg-slate-950/20 text-slate-900 font-extrabold' : 'bg-slate-800 text-slate-300'}`}>
               {localQaAnswers.length}
             </span>
@@ -1667,9 +1667,9 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({
                   type="button"
                   onClick={onStartNewScrutiny}
                   className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-white transition-all cursor-pointer"
-                  title="Finish and start a new title scrutiny session"
+                  title="Finish and start a new document session"
                 >
-                  <span>+ Start New Scrutiny</span>
+                  <span>+ Start New Opinion</span>
                 </button>
               )}
             </div>

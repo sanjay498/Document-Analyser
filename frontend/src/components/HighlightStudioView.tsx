@@ -706,15 +706,15 @@ export const HighlightStudioView: React.FC<HighlightStudioViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Back to Scrutiny Desk Button */}
+            {/* Back to Workspace Button */}
             <button
               type="button"
               onClick={onNavigateToWorkspace}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all cursor-pointer shadow-sm"
-              title="Return to scrutiny intake"
+              title="Return to workspace"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back to Scrutiny</span>
+              <span>Back to Workspace</span>
             </button>
 
             {/* Upload Existing Document */}
@@ -1373,15 +1373,15 @@ export const HighlightStudioView: React.FC<HighlightStudioViewProps> = ({
 
           {/* Action Export Buttons */}
           <div className="glass-panel rounded-2xl p-5 border border-slate-800 space-y-3">
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider">Save & Scrutiny Actions</h4>
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider">Save & Continue</h4>
 
-            {/* Use in Scrutiny Desk */}
+            {/* Use in Workspace */}
             <button
               onClick={handleUseInWorkspace}
               disabled={isProcessing}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs font-bold bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-lg shadow-amber-400/20 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
             >
-              <span>Use in Scrutiny Desk</span>
+              <span>Use Template & Continue</span>
               <ArrowRight className="w-4 h-4 stroke-[2.5]" />
             </button>
 
