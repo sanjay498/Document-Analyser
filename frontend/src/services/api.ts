@@ -719,6 +719,23 @@ export async function loadTamilSamplePreset(sessionId: string): Promise<{
   return res.json();
 }
 
+export async function loadLegalOpinionSamplePreset(sessionId: string): Promise<{
+  session_id: string;
+  template_filename: string;
+  fields: HighlightedField[];
+  table_groups: DynamicTableGroup[];
+  sources: ExtractedSourceDocument[];
+}> {
+  const res = await fetch(`${API_BASE}/sessions/${sessionId}/load-legal-opinion-sample`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error('Failed to load legal opinion sample preset');
+  }
+  return res.json();
+}
+
 export function getDownloadUrl(sessionId: string): string {
   return `${API_BASE}/sessions/${sessionId}/download`;
 }
